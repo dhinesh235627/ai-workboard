@@ -1,0 +1,10 @@
+.nav{display:flex;flex-direction:column;align-items:center;gap:6px;width:64px;padding:10px 0;border-radius:14px;color:#A1A1AA;font-size:11px;font-weight:500}
+.nav:hover{background:#1C1C21;color:#F4F4F5}
+.on{background:#1C1C21;color:#F4F4F5}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;height:48px;padding:0 22px;border-radius:12px;font-size:15px;font-weight:600;background:#3E6AE1;color:#FFFFFF;border:0;cursor:pointer;font-family:inherit}
+.btn:hover{background:#5079EA;color:#FFFFFF}
+.ghost{background:#1C1C21;color:#F4F4F5;border:1px solid #2A2A31}
+.ghost:hover{background:#24242A;color:#FFFFFF}
+.tab{cursor:pointer;font-family:inherit;text-align:left}
+.tab:hover{border-color:#3A3A44}
+@keyframes spin{to{transform:rotate(360deg)}}

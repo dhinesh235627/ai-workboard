@@ -1,0 +1,16 @@
+{
+  "name": "ai-workboard-api",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "main": "src/functions/*.js",
+  "scripts": {
+    "start": "func start"
+  },
+  "dependencies": {
+    "@azure/functions": "^4.7.2"
+  },
+  "devDependencies": {
+    "azure-functions-core-tools": "^4.0.7030"
+  }
+}

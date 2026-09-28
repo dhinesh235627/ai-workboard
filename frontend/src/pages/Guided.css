@@ -1,0 +1,11 @@
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;height:44px;padding:0 18px;border-radius:12px;font-size:14px;font-weight:600;background:#3E6AE1;color:#FFFFFF;border:0;cursor:pointer;font-family:inherit}
+.btn:hover{background:#5079EA;color:#FFFFFF}
+.ctl{height:44px;border-radius:12px;background:#1C1C21;border:1px solid #2A2A31;color:#F4F4F5;font-family:inherit;font-size:13px;font-weight:500;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:6px}
+.ctl:hover{background:#24242A}
+.pt{cursor:pointer;font-family:inherit}
+.pt:hover{filter:brightness(0.96)}
+.opt{cursor:pointer;font-family:inherit;text-align:left;color:#F4F4F5}
+.opt:hover{border-color:#3A3A44}
+@keyframes wave{0%,100%{transform:scaleY(0.3)}50%{transform:scaleY(1)}}
+@keyframes pulse{0%{transform:scale(0.5);opacity:0.9}100%{transform:scale(1.7);opacity:0}}
+@keyframes blink{50%{opacity:0.35}}

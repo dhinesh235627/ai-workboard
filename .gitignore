@@ -1,0 +1,9 @@
+node_modules/
+dist/
+*.tsbuildinfo
+.DS_Store
+
+# Azure Functions local dev
+backend/local.settings.json
+backend/bin/
+backend/obj/
