@@ -1,17 +1,100 @@
-import { Fragment } from 'react';
+import { Fragment, useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { css } from '../lib/css';
 import { useMergeState } from '../lib/useMergeState';
+import { STATUS_TEXT, useAttentionDetection } from '../lib/useAttentionDetection';
 import pageCss from './Setup.css?inline';
 
 export default function Setup() {
   const [s, setState] = useMergeState({ step: 0, c0: true, c1: false, mon: 0, voice: 0, style: 0, practiced: false });
+  const attention = useAttentionDetection();
+  const { status, faceSignals, errorMessage, running, videoRef, canvasRef, start, stop } = attention;
+
+  // Real detection only runs while Step 1 ("Camera & consent") is showing —
+  // start the camera when this step becomes visible, stop it the moment we
+  // leave it (or unmount). start()/stop() are safe to call repeatedly: the
+  // hook no-ops a start() while already running and a stop() while already
+  // idle.
+  useEffect(() => {
+    if (s.step !== 0) {
+      stop();
+      return;
+    }
+    // Deferred via setTimeout(0) on purpose: React's StrictMode (see
+    // main.tsx) double-invokes effects in dev mode — mount, cleanup, mount
+    // again — entirely synchronously, with no await/microtask in between.
+    // Calling start() directly here raced with that: the first start()
+    // began (setting its internal "starting" guard) then got flagged
+    // cancelled by the immediate simulated-unmount's stop() call, and the
+    // immediate remount's start() then no-op'd against that same guard
+    // (real, confirmed bug — verified via browser-automation against the
+    // Vite dev server: status stuck on "idle", getUserMedia never even
+    // requested). Scheduling the real start() as a macrotask lets the
+    // StrictMode cleanup-then-remount cycle finish first — the first
+    // timer gets cleared by the simulated cleanup before it ever fires,
+    // and only the remount's timer actually runs start().
+    const timer = setTimeout(() => start(), 0);
+    return () => {
+      clearTimeout(timer);
+      stop();
+    };
+    // start/stop close over hook-internal refs and are recreated every
+    // render (the hook isn't wrapped in useCallback) — depending only on the
+    // step index avoids re-running this on every render.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [s.step === 0]);
+
+  // Tab-switch screenshot: capture the current camera frame the moment this
+  // tab is switched away from or minimized, but only while the camera is
+  // actually running and the person has opted into "Snapshot on flag."
+  // Screenshots are kept in memory only for this pass — there is no
+  // storage/upload endpoint yet, so nothing here is persisted or sent
+  // anywhere.
+  const [screenshots, setScreenshots] = useState<string[]>([]);
+  const lastCaptureAtRef = useRef(0);
+  useEffect(() => {
+    function onVisibilityChange() {
+      if (document.visibilityState !== 'hidden') return;
+      if (!running || !s.c1) return;
+      const now = Date.now();
+      // Reduced from the reference project's own documented 800ms to 100ms
+      // per explicit request — still exists purely to stop a single rapid
+      // alt-tab from flooding the in-memory screenshot list with duplicates.
+      if (now - lastCaptureAtRef.current < 100) return;
+      const video = videoRef.current;
+      if (!video || video.readyState < 2) return;
+      lastCaptureAtRef.current = now;
+      const canvas = document.createElement('canvas');
+      canvas.width = video.videoWidth;
+      canvas.height = video.videoHeight;
+      const ctx = canvas.getContext('2d');
+      if (!ctx) return;
+      ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+      const dataUrl = canvas.toDataURL('image/jpeg', 0.85);
+      setScreenshots((prev) => [...prev, dataUrl]);
+    }
+    document.addEventListener('visibilitychange', onVisibilityChange);
+    return () => document.removeEventListener('visibilitychange', onVisibilityChange);
+  }, [running, s.c1, videoRef]);
+
+  // "Face centered": a face is being detected and isn't turned away from
+  // the screen — 'calibrating' still counts (a face IS present, we're just
+  // sampling a baseline), but 'looking-away'/'gaze-away'/'no-face'/etc. don't.
+  const faceCentered = status === 'engaged' || status === 'calibrating';
+  // "One person in view" comes straight from the real face count Human
+  // reports per frame.
+  const onePersonInView = faceSignals?.faceCount === 1;
+  const statusColor =
+    status === 'engaged' ? '#5BE584'
+    : status === 'calibrating' || status === 'loading' ? '#8FB0FF'
+    : status === 'idle' || status === 'cancelling' ? '#8B8B94'
+    : '#FF6B6B';
   const titles = ['Camera & consent', 'Microphone & speakers', 'Share your screen', 'Meet your guide', 'Try the ghost cursor'];
   const list = titles.map((t, i) => ({
     t, go: () => setState({ step: i }),
     mark: i < s.step ? '✓' : String(i + 1),
     badge: i < s.step ? 'background: rgba(48,209,88,0.16); color: #5BE584' : i === s.step ? 'background: #3E6AE1; color: #FFFFFF' : 'background: #1F1F24; color: #A1A1AA',
-    row: i === s.step ? 'background: #151518; border-color: #26262C' : '',
+    row: i === s.step ? 'background: #151518; border: 1px solid #26262C' : '',
     dot: i <= s.step ? 'background: #F4F4F5' : 'background: #33333B',
   }));
   const tog = (on: boolean) => ({ track: on ? 'background: #3E6AE1' : 'background: #33333B', knob: on ? 'left: 21px' : 'left: 3px', on: on ? 'true' : 'false' });
@@ -92,36 +175,53 @@ export default function Setup() {
               <>
                 <div style={{ display: "flex", gap: "32px", flexGrow: "1" }}>
                   <div style={{ width: "360px", height: "270px", borderRadius: "20px", background: "#0E1322", position: "relative", overflow: "hidden", flexShrink: "0" }}>
-                    <svg width="360" height="270" viewBox="0 0 360 270" aria-hidden="true">
-                      <ellipse cx="180" cy="125" rx="62" ry="80" fill="none" stroke="#30D158" strokeWidth="2" strokeDasharray="6 6" />
-                      <circle cx="180" cy="112" r="34" fill="#1F2A44" />
-                      <path d="M110 270c6-48 36-72 70-72s64 24 70 72" fill="#1F2A44" />
-                    </svg>
+                    <video
+                      ref={videoRef}
+                      muted
+                      playsInline
+                      style={{ display: "block", width: "100%", height: "100%", objectFit: "cover", transform: "scaleX(-1)" }}
+                    />
+                    <canvas
+                      ref={canvasRef}
+                      style={{ position: "absolute", inset: 0, width: "100%", height: "100%", transform: "scaleX(-1)" }}
+                    />
                     <div style={{ position: "absolute", left: "12px", top: "12px", display: "flex", alignItems: "center", gap: "6px", padding: "4px 10px", borderRadius: "999px", background: "rgba(0,0,0,0.6)", fontSize: "12px" }}>
-                      <span style={{ width: "8px", height: "8px", borderRadius: "50%", background: "#30D158" }} />
+                      <span style={{ width: "8px", height: "8px", borderRadius: "50%", background: statusColor }} />
                       Preview · on device
                     </div>
+                    {errorMessage && (
+                      <div style={{ position: "absolute", left: "12px", right: "12px", bottom: "12px", padding: "8px 10px", borderRadius: "10px", background: "rgba(0,0,0,0.72)", fontSize: "12px", color: "#FF6B6B" }}>
+                        {errorMessage}
+                      </div>
+                    )}
                   </div>
                   <div style={{ display: "flex", flexDirection: "column", gap: "14px", flexGrow: "1" }}>
                     <h2 style={{ margin: "0", fontSize: "26px", fontWeight: "600", letterSpacing: "-0.02em" }}>
                       Camera check
                     </h2>
+                    <div style={{ fontSize: "13px", fontWeight: "600", color: statusColor }}>
+                      {STATUS_TEXT[status]}
+                    </div>
                     <div style={{ display: "flex", flexDirection: "column", gap: "8px", fontSize: "14px" }}>
                       <div style={{ display: "flex", gap: "10px", color: "#D4D4D8" }}>
-                        <span style={{ color: "#5BE584" }}>
-                          ✓
+                        <span style={{ color: faceCentered ? "#5BE584" : "#8B8B94" }}>
+                          {faceCentered ? "✓" : "○"}
                         </span>
                         Face centered
                       </div>
                       <div style={{ display: "flex", gap: "10px", color: "#D4D4D8" }}>
+                        {/* This detection engine (Human face-mesh + coco-ssd) has
+                            no brightness/lighting metric at all — nothing here is
+                            real, so this stays a static checkmark rather than
+                            fabricating a signal that doesn't exist. */}
                         <span style={{ color: "#5BE584" }}>
                           ✓
                         </span>
                         Lighting good
                       </div>
                       <div style={{ display: "flex", gap: "10px", color: "#D4D4D8" }}>
-                        <span style={{ color: "#5BE584" }}>
-                          ✓
+                        <span style={{ color: onePersonInView ? "#5BE584" : "#8B8B94" }}>
+                          {onePersonInView ? "✓" : "○"}
                         </span>
                         One person in view
                       </div>
@@ -150,6 +250,11 @@ export default function Setup() {
                         </button>
                       </Fragment>
                     ))}
+                    {s.c1 && screenshots.length > 0 && (
+                      <div style={{ fontSize: "12px", color: "#8B8B94" }}>
+                        {screenshots.length} tab-switch snapshot{screenshots.length === 1 ? "" : "s"} captured this session (kept in memory only — not uploaded).
+                      </div>
+                    )}
                   </div>
                 </div>
               </>

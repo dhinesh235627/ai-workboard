@@ -7,3 +7,13 @@ dist/
 backend/local.settings.json
 backend/bin/
 backend/obj/
+
+# Unrelated third-party repo kept for reference only — not part of this project
+OpenHands/
+
+# Reference project (source for the camera-detection port) and local docs —
+# not part of the deployed app, never pushed
+video_analysis/
+video_analysis.zip
+document/
+frontend-deploy.zip

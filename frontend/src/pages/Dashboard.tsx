@@ -1,23 +1,55 @@
-import { Fragment } from 'react';
+import { Fragment, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import Sidebar from '../components/Sidebar';
 import { css } from '../lib/css';
 import pageCss from './Dashboard.css?inline';
 
+type Platform = {
+  mono: string;
+  name: string;
+  status: string;
+  meta: string;
+};
+
+const PLATFORMS_API_URL = 'http://localhost:7071/api/platforms';
+
 export default function Dashboard() {
   const live = 'background: rgba(48,209,88,0.14); color: #5BE584';
   const soon = 'background: #1F1F24; color: #A1A1AA';
-  const vals = {
-    platforms: [
-      { mono: 'AF', name: 'Azure AI Foundry', status: 'Live', pill: live, meta: '6 labs · agents, RAG' },
-      { mono: 'CS', name: 'Copilot Studio', status: 'Live', pill: live, meta: '4 labs · agent building' },
-      { mono: 'ML', name: 'Azure Machine Learning', status: 'Live', pill: live, meta: '3 labs · endpoints' },
-      { mono: 'JS', name: 'SAP Joule Studio', status: 'Next', pill: soon, meta: 'Joule for devs & consultants' },
-      { mono: 'BR', name: 'AWS Bedrock', status: 'Next', pill: soon, meta: 'AgentCore labs' },
-      { mono: 'CL', name: 'Claude & OpenAI certification prep', status: 'Next', pill: soon, meta: 'Exam-style practice' },
-    ],
-  };
-  const { platforms } = vals;
+  // The API only returns {mono, name, status, meta}; the status pill style
+  // is purely a presentational concern, so derive it here client-side.
+  const pillFor = (status: string) => (status === 'Live' ? live : soon);
+
+  const [platforms, setPlatforms] = useState<Platform[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    fetch(PLATFORMS_API_URL)
+      .then((res) => {
+        if (!res.ok) throw new Error(`Request failed with status ${res.status}`);
+        return res.json();
+      })
+      .then((data: Platform[]) => {
+        if (cancelled) return;
+        setPlatforms(Array.isArray(data) ? data : []);
+      })
+      .catch((err) => {
+        console.error('Failed to load platforms from API', err);
+        if (cancelled) return;
+        setPlatforms([]);
+        setLoadError(true);
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   return (
     <>
@@ -200,26 +232,36 @@ export default function Dashboard() {
               </Link>
             </div>
             <div style={{ display: "grid", gridTemplateColumns: "repeat(6, minmax(0, 1fr))", gap: "16px" }}>
-              {platforms.map((p, pIndex) => (
-                <Fragment key={pIndex}>
-                  <Link to="/labs" className="card" style={{ padding: "18px", borderRadius: "18px", background: "#151518", border: "1px solid #1F1F24", display: "flex", flexDirection: "column", gap: "12px", color: "#F4F4F5" }}>
-                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-                      <div style={{ width: "36px", height: "36px", borderRadius: "10px", background: "#1F2436", color: "#B9CEFF", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "13px", fontWeight: "700" }}>
-                        {p.mono}
+              {loading ? (
+                <div style={{ gridColumn: "1 / -1", fontSize: "13px", color: "#8B8B94" }}>
+                  Loading platforms…
+                </div>
+              ) : loadError ? (
+                <div style={{ gridColumn: "1 / -1", fontSize: "13px", color: "#8B8B94" }}>
+                  Unable to load platforms right now.
+                </div>
+              ) : (
+                platforms.map((p, pIndex) => (
+                  <Fragment key={pIndex}>
+                    <Link to="/labs" className="card" style={{ padding: "18px", borderRadius: "18px", background: "#151518", border: "1px solid #1F1F24", display: "flex", flexDirection: "column", gap: "12px", color: "#F4F4F5" }}>
+                      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                        <div style={{ width: "36px", height: "36px", borderRadius: "10px", background: "#1F2436", color: "#B9CEFF", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "13px", fontWeight: "700" }}>
+                          {p.mono}
+                        </div>
+                        <span style={css(`font-size: 11px; font-weight: 600; padding: 4px 8px; border-radius: 999px; ${pillFor(p.status)}`)}>
+                          {p.status}
+                        </span>
                       </div>
-                      <span style={css(`font-size: 11px; font-weight: 600; padding: 4px 8px; border-radius: 999px; ${p.pill}`)}>
-                        {p.status}
-                      </span>
-                    </div>
-                    <div style={{ fontSize: "15px", fontWeight: "600", lineHeight: "1.25" }}>
-                      {p.name}
-                    </div>
-                    <div style={{ fontSize: "12px", color: "#8B8B94" }}>
-                      {p.meta}
-                    </div>
-                  </Link>
-                </Fragment>
-              ))}
+                      <div style={{ fontSize: "15px", fontWeight: "600", lineHeight: "1.25" }}>
+                        {p.name}
+                      </div>
+                      <div style={{ fontSize: "12px", color: "#8B8B94" }}>
+                        {p.meta}
+                      </div>
+                    </Link>
+                  </Fragment>
+                ))
+              )}
             </div>
           </main>
         </div>
