@@ -5,7 +5,7 @@ import { css } from '../lib/css';
 import { useMergeState } from '../lib/useMergeState';
 import pageCss from './LabLauncher.css?inline';
 
-const LABS_API_BASE = 'http://localhost:7071/api/labs';
+const LABS_API_BASE = `${import.meta.env.VITE_API_BASE_URL || 'http://localhost:7071'}/api/labs`;
 
 export default function LabLauncher() {
   const P: Record<string, { name: string; status: string; time: string; lab: string; desc: string; steps: string[] }> = {

@@ -11,7 +11,8 @@ type Platform = {
   meta: string;
 };
 
-const PLATFORMS_API_URL = 'http://localhost:7071/api/platforms';
+const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:7071';
+const PLATFORMS_API_URL = `${API_BASE}/api/platforms`;
 
 export default function Dashboard() {
   const live = 'background: rgba(48,209,88,0.14); color: #5BE584';

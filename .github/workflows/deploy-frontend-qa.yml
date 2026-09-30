@@ -26,6 +26,8 @@ jobs:
 
       - name: Build
         run: npm run build
+        env:
+          VITE_API_BASE_URL: https://ai-workboard-api-qa.azurewebsites.net
 
       - name: Prune to production dependencies
         run: npm prune --omit=dev
