@@ -32,6 +32,7 @@ app.http("tts", {
       return { status: 400, body: "ssml required" }
     }
     const { SPEECH_KEY, SPEECH_REGION } = process.env
+    if (!SPEECH_KEY || !SPEECH_REGION) return { status: 503, body: "speech not configured" }
     const r = await fetch(`https://${SPEECH_REGION}.tts.speech.microsoft.com/cognitiveservices/v1`, {
       method: "POST",
       headers: {

@@ -129,7 +129,14 @@ export class Ava {
         for (;;) {
           while (this.paused) await new Promise<void>((r) => (this.wake = r));
           if (g !== this.gen) return;
-          try { await this.audio.play(); break; } catch { this.setPaused(true); } // autoplay blocked -> wait for Resume click
+          try { await this.audio.play(); break; } catch {
+            // Autoplay blocked (page opened with no click yet): start on the first click/tap/key anywhere, then retry.
+            await new Promise<void>((r) => {
+              const go = () => { removeEventListener('pointerdown', go); removeEventListener('keydown', go); r(); };
+              addEventListener('pointerdown', go); addEventListener('keydown', go);
+            });
+            if (g !== this.gen) return;
+          }
         }
         await new Promise<void>((r) => { this.endRes = r; this.audio.onended = () => r(); });
         if (g !== this.gen) return;
@@ -138,7 +145,7 @@ export class Ava {
         if (g !== this.gen) return;
       }
     } catch {
-      onLine('(Ava’s voice is unavailable right now. Follow the blue cursor.)');
+      onLine('(Ava’s voice is unavailable right now.)'); // '(' prefix marks an error line for callers
     }
     if (g === this.gen) onEnd();
   }
