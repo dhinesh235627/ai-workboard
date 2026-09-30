@@ -52,11 +52,20 @@ const VOICES: VoiceMetadata[] = [
 ];
 const STUCK: VoiceMetadata = { style: 'empathetic', prosody: { rate: 'slow' } };
 
+// Voice picker (Setup > Meet your guide): 0 Ava (female), 1 Leo (male), 2 team voice (cloned, Fish Audio).
+export const AZURE_VOICES = ['en-US-AvaNeural', 'en-US-AndrewNeural'];
+export const CLONE = 2;
+// Setup's "Speaking style" chips -> SaaSH styles.
+const STYLES: VoiceMetadata[] = [{ style: 'encouraging' }, { style: 'professional' }, { style: 'motivational' }];
+export const getPref = (k: string) => { try { return localStorage.getItem(k); } catch { return null; } };
+export const setPref = (k: string, v: number) => { try { localStorage.setItem(k, String(v)); } catch { /* private mode: choice just isn't remembered */ } };
+
 // Lab-tuned on top of SaaSH's builder: the words the learner must find on screen are slowed,
 // stressed and fenced by tiny pauses; instruction sentences leave time to act before the next one.
 const ACTION = /\b(click|type|select|pick|choose|press|open|paste)\b/i;
-export function ssml(text: string, variant: number, slow = false) {
-  const out = formatToSsml(text, { voiceName: 'en-US-AvaNeural', ...(slow ? STUCK : VOICES[variant % VOICES.length]) })
+export function ssml(text: string, variant: number, slow = false, voiceName = AZURE_VOICES[0], style: number | null = null) {
+  const meta = slow ? STUCK : style !== null ? STYLES[style] : VOICES[variant % VOICES.length];
+  const out = formatToSsml(text, { voiceName, ...meta })
     .replace(/“([^”]+)”/g, '<break time="180ms"/><prosody rate="-15%"><emphasis level="moderate">$1</emphasis></prosody><break time="220ms"/>');
   const gap = ACTION.test(text) ? (slow ? 1100 : 800) : 0; // time to act on the instruction
   return gap ? out.replace('</prosody></mstts:express-as>', `<break time="${gap}ms"/></prosody></mstts:express-as>`) : out;
@@ -71,14 +80,23 @@ export class Ava {
   private wake?: () => void;
   private endRes?: () => void;
   onPause?: (p: boolean) => void;
+  // Chosen on the Setup page and remembered; Guided reads the same choice.
+  voice = Number(getPref('ava.voice')) || 0;
+  style: number | null = getPref('ava.style') === null ? null : Number(getPref('ava.style'));
 
-  private async url(x: string) {
-    let u = this.cache.get(x);
+  private async url(text: string, variant: number, slow: boolean) {
+    const clone = this.voice === CLONE;
+    // Azure voices take SSML; the cloned voice (Fish Audio) takes plain text.
+    const body = clone ? { text: text.replace(/[“”]/g, ''), clone: true } : { ssml: ssml(text, variant, slow, AZURE_VOICES[this.voice] ?? AZURE_VOICES[0], this.style) };
+    const key = JSON.stringify(body);
+    let u = this.cache.get(key);
     if (!u) {
-      const r = await fetch('/api/tts', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ssml: x }) });
-      if (!r.ok) throw new Error('tts ' + r.status);
+      // QA/prod: API is a separate site (VITE_API_BASE_URL); local dev uses the vite /api proxy.
+      const base = import.meta.env.VITE_API_BASE_URL ?? '';
+      const r = await fetch(`${base}/api/tts`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: key });
+      if (!r.ok || !r.headers.get('content-type')?.startsWith('audio')) throw new Error('tts ' + r.status); // e.g. SPA fallback html
       u = URL.createObjectURL(await r.blob());
-      this.cache.set(x, u);
+      this.cache.set(key, u);
     }
     return u;
   }
@@ -100,7 +118,7 @@ export class Ava {
     const t0 = performance.now();
     try {
       for (const [i, t] of lines.entries()) {
-        const u = await this.url(ssml(t, variant, slow));
+        const u = await this.url(t, variant, slow);
         if (g !== this.gen) return;
         const wait = i === 0 ? delayMs - (performance.now() - t0) : 0;
         if (wait > 0) await new Promise((r) => setTimeout(r, wait));

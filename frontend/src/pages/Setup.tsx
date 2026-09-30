@@ -3,10 +3,33 @@ import { Link } from 'react-router-dom';
 import { css } from '../lib/css';
 import { useMergeState } from '../lib/useMergeState';
 import { STATUS_TEXT, useAttentionDetection } from '../lib/useAttentionDetection';
+import { Ava, setPref } from '../lib/ava';
 import pageCss from './Setup.css?inline';
 
+const INTRO = ['Hi, I’m Ava. I’ll guide you through every lab.', 'Hi, I’m Leo. I’ll walk you through every lab, step by step.', 'Hello! This is your team’s voice, guiding you through the lab.'];
+const SAMPLE = ['Welcome to the lab. First, click “New agent”. Take your time, and I’ll be right here if you get stuck.'];
+const GHOST_INTRO = ['Last step! Let’s try the ghost cursor.', 'See the blue cursor, resting on the “Create” button?', 'Whenever I want you to click something, it will glide there and pulse, just like this.', 'Go ahead and click “Create”.'];
+const GHOST_DONE = ['Nice, that’s exactly how it works!', 'You’re all set. When you’re ready, press “Start guided session”.'];
+const TEST = ['Hey, can you hear me? If this sounds clear, your speakers are ready.'];
+
 export default function Setup() {
-  const [s, setState] = useMergeState({ step: 0, c0: true, c1: false, mon: 0, voice: 0, style: 0, practiced: false });
+  const [s, setState] = useMergeState({ step: 0, c0: true, c1: false, mon: 0, voice: 0, style: 0, practiced: false, note: '' });
+  const ava = useRef<Ava | null>(null);
+  // Speaks with the voice/style currently chosen on this page (also what the guided lab will use).
+  const speak = (lines: string[], voice = s.voice, style = s.style, delayMs = 0) => {
+    ava.current ??= new Ava();
+    ava.current.voice = voice;
+    ava.current.style = style;
+    setState({ note: '' });
+    ava.current.speak(lines, 0, false, (t) => t.startsWith('(') && setState({ note: t }), () => {}, delayMs);
+  };
+  useEffect(() => () => ava.current?.stop(), []);
+  // Step 5: Ava introduces the ghost cursor once it has landed on "Create", then celebrates the click.
+  useEffect(() => {
+    if (s.step === 4 && !s.practiced) speak(GHOST_INTRO, s.voice, s.style, 700);
+    else if (s.step !== 4) ava.current?.stop();
+  }, [s.step]);
+  useEffect(() => { if (s.practiced) speak(GHOST_DONE); }, [s.practiced]);
   const attention = useAttentionDetection();
   const { status, faceSignals, errorMessage, running, videoRef, canvasRef, start, stop } = attention;
 
@@ -107,9 +130,9 @@ export default function Setup() {
   const monitors = [{ t: 'Display 1 · 2560 × 1440', preview: 'Built-in display' }, { t: 'Display 2 · 3840 × 2160', preview: 'External monitor' }]
     .map((m, i) => ({ ...m, border: s.mon === i ? sel : uns, on: s.mon === i ? 'true' : 'false', pick: () => setState({ mon: i }) }));
   const voices = [{ i: 'A', n: 'Ava', d: 'Warm and encouraging' }, { i: 'L', n: 'Leo', d: 'Calm and precise' }, { i: 'Y', n: 'Your team voice', d: 'Cloned voice · admin approval required' }]
-    .map((v, i) => ({ ...v, border: s.voice === i ? sel : uns, on: s.voice === i ? 'true' : 'false', pick: () => setState({ voice: i }) }));
+    .map((v, i) => ({ ...v, border: s.voice === i ? sel : uns, on: s.voice === i ? 'true' : 'false', pick: () => { setState({ voice: i }); setPref('ava.voice', i); speak([INTRO[i]], i); } }));
   const styles = ['Encouraging', 'Neutral', 'Energetic'].map((t, i) => ({
-    t, on: s.style === i ? 'true' : 'false', pick: () => setState({ style: i }),
+    t, on: s.style === i ? 'true' : 'false', pick: () => { setState({ style: i }); setPref('ava.style', i); speak(SAMPLE, s.voice, i); },
     s: s.style === i ? 'background: #F4F4F5; color: #0B0B0D; border: 1px solid #F4F4F5; font-weight: 600' : 'background: transparent; border: 1px solid #33333B',
   }));
   const bars = Array.from({ length: 24 }, (_, i) => ({ d: 'animation-delay: -' + ((i * 137) % 1000) / 1000 + 's' }));
@@ -299,9 +322,10 @@ export default function Setup() {
                       </select>
                     </label>
                   </div>
-                  <button className="btn ghost" style={{ alignSelf: "flex-start" }}>
+                  <button className="btn ghost" style={{ alignSelf: "flex-start" }} onClick={() => speak(TEST)}>
                     Play test tone
                   </button>
+                  {s.note && <div style={{ fontSize: "13px", color: "#FF8A80" }}>{s.note}</div>}
                 </div>
               </>
             )}
@@ -381,9 +405,10 @@ export default function Setup() {
                       </Fragment>
                     ))}
                   </div>
-                  <button className="btn ghost" style={{ alignSelf: "flex-start" }}>
+                  <button className="btn ghost" style={{ alignSelf: "flex-start" }} onClick={() => speak(SAMPLE)}>
                     ▶ Hear a sample
                   </button>
+                  {s.note && <div style={{ fontSize: "13px", color: "#FF8A80" }}>{s.note}</div>}
                 </div>
               </>
             )}

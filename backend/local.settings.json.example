@@ -7,6 +7,8 @@
     "LABS_RESOURCE_GROUP": "rg-ai-workboard-labs",
     "DEFAULT_LEARNER_OBJECT_ID": "<your Azure AD object id, until real login exists>",
     "SPEECH_KEY": "<azure-speech-key>",
-    "SPEECH_REGION": "<e.g. eastus>"
+    "SPEECH_REGION": "<e.g. eastus>",
+    "FISH_AUDIO_API_KEY": "<fish audio key, only for the cloned team voice>",
+    "FISH_VOICE_ID": "<fish audio voice model id (reference_id) of the team voice>"
   }
 }

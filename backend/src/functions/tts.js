@@ -1,12 +1,33 @@
 import { app } from "@azure/functions"
 
-// POST { ssml } -> mp3. Key stays server-side (SPEECH_KEY, SPEECH_REGION).
+// POST { ssml }            -> mp3 from Azure Speech (Ava / Leo)
+// POST { text, clone:true } -> mp3 from Fish Audio (team cloned voice, same call as SaaSH's fish_audio_engine)
+// Keys stay server-side: SPEECH_KEY, SPEECH_REGION, FISH_AUDIO_API_KEY, FISH_VOICE_ID (+ optional FISH_AUDIO_MODEL).
+const audio = (buf) => ({ body: Buffer.from(buf), headers: { "Content-Type": "audio/mpeg" } })
+
 app.http("tts", {
   methods: ["POST"],
   authLevel: "anonymous",
   route: "tts",
   handler: async (req) => {
-    const { ssml } = await req.json().catch(() => ({}))
+    const { ssml, text, clone } = await req.json().catch(() => ({}))
+
+    if (clone) {
+      const { FISH_AUDIO_API_KEY, FISH_VOICE_ID, FISH_AUDIO_MODEL } = process.env
+      if (typeof text !== "string" || !text.trim() || text.length > 600) return { status: 400, body: "text required" }
+      if (!FISH_AUDIO_API_KEY || !FISH_VOICE_ID) return { status: 503, body: "cloned voice not configured" }
+      const r = await fetch("https://api.fish.audio/v1/tts", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${FISH_AUDIO_API_KEY}`,
+          "Content-Type": "application/json",
+          model: FISH_AUDIO_MODEL || "s2.1-pro-free",
+        },
+        body: JSON.stringify({ text: text.trim(), reference_id: FISH_VOICE_ID, format: "mp3" }),
+      })
+      return r.ok ? audio(await r.arrayBuffer()) : { status: 502, body: `fish ${r.status}` }
+    }
+
     if (typeof ssml !== "string" || !ssml.startsWith("<speak") || ssml.length > 5000) {
       return { status: 400, body: "ssml required" }
     }
@@ -20,7 +41,6 @@ app.http("tts", {
       },
       body: ssml,
     })
-    if (!r.ok) return { status: 502, body: `speech ${r.status}` }
-    return { body: Buffer.from(await r.arrayBuffer()), headers: { "Content-Type": "audio/mpeg" } }
+    return r.ok ? audio(await r.arrayBuffer()) : { status: 502, body: `speech ${r.status}` }
   },
 })
