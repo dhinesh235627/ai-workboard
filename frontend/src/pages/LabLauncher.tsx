@@ -70,7 +70,7 @@ export default function LabLauncher() {
         const data = await res.json();
         setState({ deploymentName: data.deploymentName, storageAccountName: data.storageAccountName, accountName: data.accountName, expiresAt: data.expiresAt, stage: 1 });
         const statusQuery = data.accountName
-          ? `accountName=${data.accountName}`
+          ? `accountName=${data.accountName}&projectName=${data.projectName}`
           : `storageAccountName=${data.storageAccountName}`;
         timer.current = window.setInterval(async () => {
           try {

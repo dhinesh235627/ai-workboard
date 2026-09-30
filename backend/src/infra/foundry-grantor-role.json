@@ -1,0 +1,13 @@
+{
+  "Name": "Foundry Access Grantor (ai-workboard-labs)",
+  "Description": "Can only assign the Foundry User role, only inside rg-ai-workboard-labs. Cannot assign any other role, and has no permissions outside role assignment.",
+  "Actions": [
+    "Microsoft.Authorization/roleAssignments/write",
+    "Microsoft.Authorization/roleAssignments/read",
+    "Microsoft.Authorization/roleAssignments/delete"
+  ],
+  "NotActions": [],
+  "AssignableScopes": [
+    "/subscriptions/2ebd10fe-af07-4e11-97b6-cdd1adf2e8dc/resourceGroups/rg-ai-workboard-labs"
+  ]
+}

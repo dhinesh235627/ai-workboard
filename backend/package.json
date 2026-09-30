@@ -8,6 +8,7 @@
     "start": "func start"
   },
   "dependencies": {
+    "@azure/arm-authorization": "^9.0.0",
     "@azure/arm-resources": "^5.2.0",
     "@azure/functions": "^4.7.2",
     "@azure/identity": "^4.13.3"

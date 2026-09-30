@@ -119,6 +119,9 @@ app.http("labsProvision", {
         resourceGroup: RESOURCE_GROUP,
         createdAt,
         expiresAt,
+        // /api/labs/status needs this to know which project to grant the
+        // Foundry User role on, once the deployment finishes.
+        platform: "foundry",
       },
     }
   },
