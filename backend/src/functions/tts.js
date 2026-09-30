@@ -10,12 +10,13 @@ app.http("tts", {
   authLevel: "anonymous",
   route: "tts",
   handler: async (req) => {
-    const { ssml, text, clone } = await req.json().catch(() => ({}))
+    const { ssml, text, clone, voiceId } = await req.json().catch(() => ({}))
 
     if (clone) {
-      const { FISH_AUDIO_API_KEY, FISH_VOICE_ID, FISH_AUDIO_MODEL } = process.env
+      const { FISH_AUDIO_API_KEY, FISH_AUDIO_MODEL } = process.env
+      const voice = typeof voiceId === "string" && /^[\w-]{6,64}$/.test(voiceId) ? voiceId : process.env.FISH_VOICE_ID // learner's own clone, else team default
       if (typeof text !== "string" || !text.trim() || text.length > 600) return { status: 400, body: "text required" }
-      if (!FISH_AUDIO_API_KEY || !FISH_VOICE_ID) return { status: 503, body: "cloned voice not configured" }
+      if (!FISH_AUDIO_API_KEY || !voice) return { status: 503, body: "cloned voice not configured" }
       const r = await fetch("https://api.fish.audio/v1/tts", {
         method: "POST",
         headers: {
@@ -23,7 +24,7 @@ app.http("tts", {
           "Content-Type": "application/json",
           model: FISH_AUDIO_MODEL || "s2.1-pro-free",
         },
-        body: JSON.stringify({ text: text.trim(), reference_id: FISH_VOICE_ID, format: "mp3" }),
+        body: JSON.stringify({ text: text.trim(), reference_id: voice, format: "mp3" }),
       })
       return r.ok ? audio(await r.arrayBuffer()) : { status: 502, body: `fish ${r.status}` }
     }

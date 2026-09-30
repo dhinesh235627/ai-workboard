@@ -3,23 +3,53 @@ import { Link } from 'react-router-dom';
 import { css } from '../lib/css';
 import { useMergeState } from '../lib/useMergeState';
 import { STATUS_TEXT, useAttentionDetection } from '../lib/useAttentionDetection';
-import { Ava, setPref } from '../lib/ava';
+import { Ava, CLONE, getPref, setPref } from '../lib/ava';
+import { CLONE_TEXT, MIN_MS, cloneVoice, startRecording, toWav } from '../lib/cloneVoice';
 import pageCss from './Setup.css?inline';
 
 const INTRO = ['Hi, I’m Ava. I’ll guide you through every lab.', 'Hi, I’m Leo. I’ll walk you through every lab, step by step.', 'Hello! This is your team’s voice, guiding you through the lab.'];
 const SAMPLE = ['Welcome to the lab. First, click “New agent”. Take your time, and I’ll be right here if you get stuck.'];
 const GHOST_INTRO = ['Last step! Let’s try the ghost cursor.', 'See the blue cursor, resting on the “Create” button?', 'Whenever I want you to click something, it will glide there and pulse, just like this.', 'Go ahead and click “Create”.'];
 const GHOST_DONE = ['Nice, that’s exactly how it works!', 'You’re all set. When you’re ready, press “Start guided session”.'];
+const CLONE_TEST = ['That’s your voice, cloned! From now on, I’ll guide you in it.', 'Hey, can you hear me?'];
 const TEST = ['Hey, can you hear me? If this sounds clear, your speakers are ready.'];
 
 export default function Setup() {
-  const [s, setState] = useMergeState({ step: 0, c0: true, c1: false, mon: 0, voice: 0, style: 0, practiced: false, note: '' });
+  const [s, setState] = useMergeState({ step: 0, c0: true, c1: false, mon: 0, voice: 0, style: 0, practiced: false, note: '',
+    rec: getPref('ava.cloneId') ? 'ready' : 'idle' as 'idle' | 'recording' | 'cloning' | 'ready', consent: false });
   const ava = useRef<Ava | null>(null);
+  const recorder = useRef<Awaited<ReturnType<typeof startRecording>> | null>(null);
+  // Record -> WAV -> clone (Fish Audio) -> remember the voice id -> play a test in the new voice.
+  const finishRecording = async () => {
+    if (!recorder.current) return;
+    setState({ rec: 'cloning', note: '' });
+    try {
+      const { blob, ms } = await recorder.current.stop();
+      recorder.current = null;
+      if (ms < MIN_MS) throw new Error('short');
+      setPref('ava.cloneId', await cloneVoice(await toWav(blob)));
+      setState({ rec: 'ready' });
+      speak(CLONE_TEST, CLONE);
+    } catch (e) {
+      setState({ rec: 'idle', note: (e as Error).message === 'short' ? '(That was too short. Please read the whole sentence, about 10 seconds.)' : '(Couldn’t clone your voice. Please try again.)' });
+    }
+  };
+  const toggleRecord = async () => {
+    if (s.rec === 'recording') return finishRecording();
+    try {
+      ava.current?.stop();
+      recorder.current = await startRecording(25000, finishRecording);
+      setState({ rec: 'recording', note: '' });
+    } catch {
+      setState({ note: '(Microphone access is needed to record your voice.)' });
+    }
+  };
   // Speaks with the voice/style currently chosen on this page (also what the guided lab will use).
   const speak = (lines: string[], voice = s.voice, style = s.style, delayMs = 0) => {
     ava.current ??= new Ava();
     ava.current.voice = voice;
     ava.current.style = style;
+    ava.current.cloneId = getPref('ava.cloneId');
     setState({ note: '' });
     ava.current.speak(lines, 0, false, (t) => t.startsWith('(') && setState({ note: t }), () => {}, delayMs);
   };
@@ -130,7 +160,7 @@ export default function Setup() {
   const monitors = [{ t: 'Display 1 · 2560 × 1440', preview: 'Built-in display' }, { t: 'Display 2 · 3840 × 2160', preview: 'External monitor' }]
     .map((m, i) => ({ ...m, border: s.mon === i ? sel : uns, on: s.mon === i ? 'true' : 'false', pick: () => setState({ mon: i }) }));
   const voices = [{ i: 'A', n: 'Ava', d: 'Warm and encouraging' }, { i: 'L', n: 'Leo', d: 'Calm and precise' }, { i: 'Y', n: 'Your team voice', d: 'Cloned voice · admin approval required' }]
-    .map((v, i) => ({ ...v, border: s.voice === i ? sel : uns, on: s.voice === i ? 'true' : 'false', pick: () => { setState({ voice: i }); setPref('ava.voice', i); speak([INTRO[i]], i); } }));
+    .map((v, i) => ({ ...v, border: s.voice === i ? sel : uns, on: s.voice === i ? 'true' : 'false', pick: () => { setState({ voice: i }); setPref('ava.voice', i); if (i !== CLONE || getPref('ava.cloneId')) speak([INTRO[i]], i); } }));
   const styles = ['Encouraging', 'Neutral', 'Energetic'].map((t, i) => ({
     t, on: s.style === i ? 'true' : 'false', pick: () => { setState({ style: i }); setPref('ava.style', i); speak(SAMPLE, s.voice, i); },
     s: s.style === i ? 'background: #F4F4F5; color: #0B0B0D; border: 1px solid #F4F4F5; font-weight: 600' : 'background: transparent; border: 1px solid #33333B',
@@ -393,6 +423,33 @@ export default function Setup() {
                       </Fragment>
                     ))}
                   </div>
+                  {s.voice === CLONE && (
+                    <div style={{ padding: "16px 18px", borderRadius: "16px", background: "#101014", border: "1px solid #26262C", display: "flex", flexDirection: "column", gap: "12px" }}>
+                      <div style={{ fontSize: "14px", fontWeight: "600" }}>
+                        {s.rec === 'ready' ? '✓ Your voice is ready' : 'Create your team voice'}
+                      </div>
+                      <label style={{ display: "flex", gap: "8px", alignItems: "flex-start", fontSize: "13px", color: "#A1A1AA" }}>
+                        <input type="checkbox" checked={s.consent} onChange={(e) => setState({ consent: e.target.checked })} style={{ marginTop: "2px" }} />
+                        This is my own voice, and I agree to a synthetic copy of it being created to guide my lab sessions.
+                      </label>
+                      <div style={{ fontSize: "13px", color: "#A1A1AA" }}>
+                        Read this aloud:
+                      </div>
+                      <div style={{ fontSize: "15px", lineHeight: "1.5", color: "#F4F4F5", padding: "12px 14px", borderRadius: "12px", background: "#1A1A20" }}>
+                        “{CLONE_TEXT}”
+                      </div>
+                      <div style={{ display: "flex", gap: "10px", alignItems: "center" }}>
+                        <button className="btn" disabled={!s.consent || s.rec === 'cloning'} onClick={toggleRecord} style={{ opacity: !s.consent || s.rec === 'cloning' ? 0.5 : 1 }}>
+                          {s.rec === 'recording' ? '■ Stop recording' : s.rec === 'cloning' ? 'Cloning your voice…' : s.rec === 'ready' ? '● Record again' : '● Record your voice'}
+                        </button>
+                        {s.rec === 'ready' && (
+                          <button className="btn ghost" onClick={() => speak(TEST, CLONE)}>
+                            ▶ Test my voice
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  )}
                   <div style={{ fontSize: "13px", color: "#A1A1AA" }}>
                     Speaking style
                   </div>
