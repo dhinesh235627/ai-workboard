@@ -1,12 +1,39 @@
-import { Fragment } from 'react';
+import { Fragment, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import Sidebar from '../components/Sidebar';
 import { css } from '../lib/css';
 import { useMergeState } from '../lib/useMergeState';
+import { useAttentionDetection } from '../lib/useAttentionDetection';
 import pageCss from './Player.css?inline';
 
 export default function Player() {
   const [s, setState] = useMergeState({ audio: 'en', subs: 'es', playing: true, done: false });
+  const attention = useAttentionDetection();
+  const { status, videoRef, canvasRef, start, stop } = attention;
+
+  // Camera runs only while the lesson video is actually playing — starts the
+  // moment playback begins, stops on pause/finish or leaving the page.
+  // Deferred via setTimeout(0) for the same reason as Setup.tsx: React's
+  // StrictMode double-invokes this effect in dev (mount, cleanup, mount)
+  // synchronously, which races start()'s internal "starting" guard against
+  // the simulated unmount's stop() if called directly.
+  useEffect(() => {
+    if (!s.playing || s.done) {
+      stop();
+      return;
+    }
+    const timer = setTimeout(() => start(), 0);
+    return () => {
+      clearTimeout(timer);
+      stop();
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [s.playing, s.done]);
+  const statusColor =
+    status === 'engaged' ? '#5BE584'
+    : status === 'calibrating' || status === 'loading' ? '#8FB0FF'
+    : status === 'idle' || status === 'cancelling' ? '#8B8B94'
+    : '#FF6B6B';
   const lines: Record<string, string> = {
     en: 'An agent combines a model, instructions and tools to complete a task.',
     es: 'Un agente combina un modelo, instrucciones y herramientas para completar una tarea.',
@@ -65,6 +92,22 @@ export default function Player() {
               4 · Agent instructions &amp; tools
             </h1>
             <div style={{ position: "relative", width: "960px", height: "540px", flexShrink: "0", borderRadius: "20px", overflow: "hidden", background: "#0E1322", border: "1px solid #1F1F24" }}>
+              <div style={{ position: "absolute", right: "16px", top: "16px", width: "110px", height: "82px", borderRadius: "12px", overflow: "hidden", background: "#000000", border: "1px solid #26262C", zIndex: 2 }}>
+                <video
+                  ref={videoRef}
+                  muted
+                  playsInline
+                  style={{ display: "block", width: "100%", height: "100%", objectFit: "cover", transform: "scaleX(-1)" }}
+                />
+                <canvas
+                  ref={canvasRef}
+                  style={{ position: "absolute", inset: 0, width: "100%", height: "100%", transform: "scaleX(-1)" }}
+                />
+                <div style={{ position: "absolute", left: "6px", bottom: "6px", display: "flex", alignItems: "center", gap: "4px", padding: "2px 6px", borderRadius: "999px", background: "rgba(0,0,0,0.6)", fontSize: "10px" }}>
+                  <span style={css(`width: 6px; height: 6px; border-radius: 50%; background: ${statusColor}`)} />
+                  Focus
+                </div>
+              </div>
               <div style={{ position: "absolute", left: "0", top: "0", width: "960px", height: "460px", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: "28px" }}>
                 <div style={{ fontSize: "14px", letterSpacing: "0.14em", color: "#8FB0FF", fontWeight: "600" }}>
                   CORE IDEA
