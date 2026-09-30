@@ -1,4 +1,4 @@
-import { RoleAssignmentsClient } from "@azure/arm-authorization"
+import { AuthorizationManagementClient } from "@azure/arm-authorization"
 import { randomUUID } from "node:crypto"
 
 // Renamed from "Azure AI User" — the ID is stable across the rename, per
@@ -13,7 +13,7 @@ const FOUNDRY_USER_ROLE_DEFINITION_ID = "53ca6127-db72-4b80-b1b0-d745d6d5456d"
 // without this step every learner would land in a real project and
 // immediately hit "you don't have permission to create agents here."
 export async function grantFoundryAccess({ credential, subscriptionId, resourceGroup, accountName, projectName, learnerObjectId }, log) {
-  const authClient = new RoleAssignmentsClient(credential, subscriptionId)
+  const authClient = new AuthorizationManagementClient(credential, subscriptionId)
   const accountScope = `/subscriptions/${subscriptionId}/resourceGroups/${resourceGroup}/providers/Microsoft.CognitiveServices/accounts/${accountName}`
   const projectScope = `${accountScope}/projects/${projectName}`
   const roleDefinitionId = `/subscriptions/${subscriptionId}/providers/Microsoft.Authorization/roleDefinitions/${FOUNDRY_USER_ROLE_DEFINITION_ID}`
