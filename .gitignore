@@ -17,3 +17,6 @@ video_analysis/
 video_analysis.zip
 document/
 frontend-deploy.zip
+
+# Local Azurite storage emulator data (backend timer trigger dev dependency)
+backend/.azurite/

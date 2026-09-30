@@ -127,8 +127,8 @@ export default function Setup() {
   return (
     <>
       <style>{pageCss}</style>
-      <div style={{ width: "100%", minWidth: "1440px", height: "100vh", minHeight: "900px", display: "flex", background: "#0B0B0D", overflow: "hidden" }}>
-        <aside style={{ width: "360px", flexShrink: "0", borderRight: "1px solid #1F1F24", padding: "36px 32px", boxSizing: "border-box", display: "flex", flexDirection: "column", gap: "28px" }}>
+      <div style={{ width: "100%", height: "100%", display: "flex", background: "#0B0B0D", overflow: "hidden" }}>
+        <aside className="no-scrollbar" style={{ width: "360px", flexShrink: "0", borderRight: "1px solid #1F1F24", padding: "36px 32px", boxSizing: "border-box", display: "flex", flexDirection: "column", gap: "28px", overflow: "auto" }}>
           <Link to="/labs" style={{ fontSize: "14px", color: "#A1A1AA" }}>
             ← Back to lab
           </Link>
@@ -159,15 +159,15 @@ export default function Setup() {
             You can pause the camera, mic or screen share at any time. Settings › Privacy shows exactly what is kept.
           </div>
         </aside>
-        <main style={{ flexGrow: "1", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: "28px", position: "relative" }}>
-          <div style={{ display: "flex", gap: "8px" }}>
+        <main className="no-scrollbar" style={{ flexGrow: "1", minHeight: "0", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: "28px", position: "relative", overflow: "auto" }}>
+          <div style={{ display: "flex", gap: "8px", flexShrink: "0" }}>
             {list.map((c, cIndex) => (
               <Fragment key={cIndex}>
                 <span style={css(`width: 32px; height: 4px; border-radius: 2px; ${c.dot}`)} />
               </Fragment>
             ))}
           </div>
-          <div style={{ width: "820px", height: "560px", boxSizing: "border-box", borderRadius: "28px", background: "#151518", border: "1px solid #24242A", padding: "40px", display: "flex", flexDirection: "column", gap: "22px", animation: "rise 0.25s ease-out" }}>
+          <div style={{ width: "820px", height: "560px", flexShrink: "0", boxSizing: "border-box", borderRadius: "28px", background: "#151518", border: "1px solid #24242A", padding: "40px", display: "flex", flexDirection: "column", gap: "22px", animation: "rise 0.25s ease-out" }}>
             <div style={{ fontSize: "12px", fontWeight: "600", letterSpacing: "0.1em", color: "#8FB0FF" }}>
               STEP {num} OF 5
             </div>

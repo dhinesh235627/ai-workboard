@@ -1,0 +1,39 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+  "contentVersion": "1.0.0.0",
+  "parameters": {
+    "contactEmail": { "type": "string" }
+  },
+  "resources": [
+    {
+      "type": "Microsoft.Consumption/budgets",
+      "apiVersion": "2023-05-01",
+      "name": "ai-workboard-labs-budget",
+      "properties": {
+        "category": "Cost",
+        "amount": 15,
+        "timeGrain": "Monthly",
+        "timePeriod": {
+          "startDate": "2026-09-01T00:00:00Z",
+          "endDate": "2031-09-01T00:00:00Z"
+        },
+        "notifications": {
+          "Actual_GreaterThan_80_Percent": {
+            "enabled": true,
+            "operator": "GreaterThan",
+            "threshold": 80,
+            "contactEmails": ["[parameters('contactEmail')]"],
+            "thresholdType": "Actual"
+          },
+          "Actual_GreaterThan_100_Percent": {
+            "enabled": true,
+            "operator": "GreaterThan",
+            "threshold": 100,
+            "contactEmails": ["[parameters('contactEmail')]"],
+            "thresholdType": "Actual"
+          }
+        }
+      }
+    }
+  ]
+}

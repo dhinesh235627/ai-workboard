@@ -1,0 +1,43 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+  "contentVersion": "1.0.0.0",
+  "parameters": {
+    "accountName": { "type": "string" },
+    "projectName": { "type": "string" },
+    "learnerId": { "type": "string" },
+    "expiresAt": { "type": "string" }
+  },
+  "variables": {
+    "location": "southindia",
+    "modelDeploymentName": "gpt-4o-mini"
+  },
+  "resources": [
+    {
+      "type": "Microsoft.CognitiveServices/accounts/projects",
+      "apiVersion": "2026-07-15-preview",
+      "name": "[concat(parameters('accountName'), '/', parameters('projectName'))]",
+      "location": "[variables('location')]",
+      "identity": { "type": "SystemAssigned" },
+      "tags": {
+        "learnerId": "[parameters('learnerId')]",
+        "expiresAt": "[parameters('expiresAt')]"
+      },
+      "properties": {
+        "displayName": "Hands-on lab sandbox",
+        "description": "Auto-provisioned per-learner sandbox for the /labs Azure AI Foundry lab."
+      }
+    },
+    {
+      "type": "Microsoft.CognitiveServices/accounts/deployments",
+      "apiVersion": "2025-06-01",
+      "name": "[concat(parameters('accountName'), '/', variables('modelDeploymentName'))]",
+      "sku": { "name": "GlobalStandard", "capacity": 1 },
+      "properties": {
+        "model": { "format": "OpenAI", "name": "gpt-4o-mini", "version": "2024-07-18" }
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.CognitiveServices/accounts/projects', parameters('accountName'), parameters('projectName'))]"
+      ]
+    }
+  ]
+}

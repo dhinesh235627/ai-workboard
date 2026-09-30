@@ -17,9 +17,9 @@ export default function Results() {
   return (
     <>
       <style>{pageCss}</style>
-      <div style={{ width: "100%", minWidth: "1440px", height: "100vh", minHeight: "900px", display: "flex", background: "#0B0B0D", overflow: "hidden" }}>
+      <div style={{ width: "100%", height: "100%", display: "flex", background: "#0B0B0D", overflow: "hidden" }}>
         <Sidebar active="/results" />
-        <main style={{ flexGrow: "1", padding: "36px 48px", display: "flex", flexDirection: "column", gap: "24px" }}>
+        <main className="no-scrollbar" style={{ flexGrow: "1", minHeight: "0", padding: "36px 48px", display: "flex", flexDirection: "column", gap: "24px", overflow: "auto" }}>
           <div>
             <div style={{ fontSize: "13px", color: "#8B8B94", letterSpacing: "0.08em", textTransform: "uppercase" }}>
               Evaluation · Build an HR policy agent

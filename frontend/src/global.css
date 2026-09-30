@@ -1,2 +1,9 @@
+html,body,#root{height:100%}
 body{margin:0;font-family:'Geist',system-ui,sans-serif;background:#0B0B0D;color:#F4F4F5;-webkit-font-smoothing:antialiased}
 a{color:#8FB0FF;text-decoration:none}a:hover{color:#B9CEFF}
+/* Content areas fall back to overflow:auto so nothing gets silently clipped
+   on a short window, but the scrollbar chrome itself should stay invisible —
+   it's a safety net, not a visible UI element. Scrolling still works via
+   wheel/trackpad/keyboard; only the drawn bar is hidden. */
+.no-scrollbar{scrollbar-width:none;-ms-overflow-style:none}
+.no-scrollbar::-webkit-scrollbar{display:none;width:0;height:0}

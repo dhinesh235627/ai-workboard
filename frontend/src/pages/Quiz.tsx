@@ -41,7 +41,7 @@ export default function Quiz() {
   return (
     <>
       <style>{pageCss}</style>
-      <div style={{ width: "100%", minWidth: "1440px", height: "100vh", minHeight: "900px", position: "relative", overflow: "hidden", background: "#0B0B0D" }}>
+      <div style={{ width: "100%", height: "100%", position: "relative", overflow: "hidden", background: "#0B0B0D" }}>
         <div style={{ position: "absolute", inset: "0", display: "flex", alignItems: "center", justifyContent: "center", opacity: "0.18" }}>
           <div style={{ width: "1100px", height: "620px", borderRadius: "24px", background: "#0E1322" }} />
         </div>
@@ -54,7 +54,7 @@ export default function Quiz() {
           </div>
         </div>
         <div style={{ position: "absolute", inset: "0", display: "flex", alignItems: "center", justifyContent: "center" }}>
-          <div style={{ width: "720px", boxSizing: "border-box", padding: "40px", borderRadius: "28px", background: "rgba(28,28,33,0.92)", border: "1px solid #2E2E36", backdropFilter: "blur(24px)", display: "flex", flexDirection: "column", gap: "22px" }}>
+          <div className="no-scrollbar" style={{ width: "720px", maxWidth: "92vw", maxHeight: "92vh", overflow: "auto", boxSizing: "border-box", padding: "40px", borderRadius: "28px", background: "rgba(28,28,33,0.92)", border: "1px solid #2E2E36", backdropFilter: "blur(24px)", display: "flex", flexDirection: "column", gap: "22px" }}>
             {inQuiz && (
               <>
                 <div style={{ display: "flex", flexDirection: "column", gap: "22px" }}>

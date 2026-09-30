@@ -2,6 +2,8 @@
   "IsEncrypted": false,
   "Values": {
     "AzureWebJobsStorage": "UseDevelopmentStorage=true",
-    "FUNCTIONS_WORKER_RUNTIME": "node"
+    "FUNCTIONS_WORKER_RUNTIME": "node",
+    "AZURE_SUBSCRIPTION_ID": "<your subscription id>",
+    "LABS_RESOURCE_GROUP": "rg-ai-workboard-labs"
   }
 }

@@ -8,9 +8,12 @@
     "start": "func start"
   },
   "dependencies": {
-    "@azure/functions": "^4.7.2"
+    "@azure/arm-resources": "^5.2.0",
+    "@azure/functions": "^4.7.2",
+    "@azure/identity": "^4.13.3"
   },
   "devDependencies": {
-    "azure-functions-core-tools": "^4.0.7030"
+    "azure-functions-core-tools": "^4.0.7030",
+    "azurite": "^3.37.0"
   }
 }

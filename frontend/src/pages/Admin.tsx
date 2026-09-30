@@ -47,9 +47,9 @@ export default function Admin() {
   return (
     <>
       <style>{pageCss}</style>
-      <div style={{ width: "100%", minWidth: "1440px", height: "100vh", minHeight: "900px", display: "flex", background: "#0B0B0D", overflow: "hidden" }}>
+      <div style={{ width: "100%", height: "100%", display: "flex", background: "#0B0B0D", overflow: "hidden" }}>
         <Sidebar active="/admin" />
-        <main style={{ flexGrow: "1", padding: "32px 48px", display: "flex", flexDirection: "column", gap: "22px", minWidth: "0" }}>
+        <main className="no-scrollbar" style={{ flexGrow: "1", minHeight: "0", padding: "32px 48px", display: "flex", flexDirection: "column", gap: "22px", minWidth: "0", overflow: "auto" }}>
           <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between" }}>
             <div>
               <div style={{ fontSize: "13px", color: "#8B8B94", letterSpacing: "0.08em", textTransform: "uppercase" }}>
@@ -96,7 +96,7 @@ export default function Admin() {
                   {nodes.map((n, nIndex) => (
                     <Fragment key={nIndex}>
                       <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "0" }}>
-                        <button className="node" onClick={n.pick} style={css(`width: 420px; padding: 14px 16px; border-radius: 14px; background: #151518; display: flex; align-items: center; gap: 14px; ${n.border}`)}>
+                        <button className="node" onClick={n.pick} style={css(`width: 100%; max-width: 420px; padding: 14px 16px; border-radius: 14px; background: #151518; display: flex; align-items: center; gap: 14px; ${n.border}`)}>
                           <span style={{ width: "34px", height: "34px", borderRadius: "10px", background: "#1F2436", color: "#B9CEFF", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "12px", fontWeight: "700" }}>
                             {n.i}
                           </span>

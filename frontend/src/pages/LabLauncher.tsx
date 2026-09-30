@@ -5,6 +5,8 @@ import { css } from '../lib/css';
 import { useMergeState } from '../lib/useMergeState';
 import pageCss from './LabLauncher.css?inline';
 
+const LABS_API_BASE = 'http://localhost:7071/api/labs';
+
 export default function LabLauncher() {
   const P: Record<string, { name: string; status: string; time: string; lab: string; desc: string; steps: string[] }> = {
     foundry: { name: 'Azure AI Foundry', status: 'Live', time: '25 min', lab: 'Build an HR policy agent', desc: 'Create an agent, connect a model, write its instructions and test it in the playground inside a sandbox that is ready for you.', steps: ['Create a new agent', 'Name it and pick the deployed model', 'Write instructions from the starter card', 'Add the HR policy file as knowledge', 'Test it in the playground'] },
@@ -14,7 +16,11 @@ export default function LabLauncher() {
     bedrock: { name: 'AWS Bedrock', status: 'Next release', time: '30 min', lab: 'Build an agent with AgentCore', desc: 'AWS labs run in leased sandbox accounts.', steps: [] },
     claude: { name: 'Cert prep', status: 'Next release', time: '45 min', lab: 'Claude & OpenAI certification practice', desc: 'Exam-style tasks against model deployments that Learnly owns.', steps: [] },
   };
-  const [s, setState] = useMergeState({ plat: 'foundry', stage: -1, guide: true });
+  const [s, setState] = useMergeState({
+    plat: 'foundry', stage: -1, guide: true,
+    deploymentName: null as string | null, storageAccountName: null as string | null, accountName: null as string | null,
+    portalUrl: null as string | null, expiresAt: null as string | null, error: null as string | null,
+  });
   const timer = useRef<number | undefined>(undefined);
   useEffect(() => () => clearInterval(timer.current), []);
   const plat = P[s.plat];
@@ -23,7 +29,10 @@ export default function LabLauncher() {
     name: P[k].name, status: P[k].status, on: s.plat === k ? 'true' : 'false',
     style: s.plat === k ? 'background: #182038; border: 1px solid #3E6AE1;' : 'background: #151518; border: 1px solid #1F1F24;',
     statusStyle: P[k].status === 'Live' ? 'color: #5BE584' : 'color: #8B8B94',
-    pick: () => { clearInterval(timer.current); setState({ plat: k, stage: -1 }); },
+    pick: () => {
+      clearInterval(timer.current);
+      setState({ plat: k, stage: -1, deploymentName: null, storageAccountName: null, accountName: null, portalUrl: null, expiresAt: null, error: null });
+    },
   }));
   const labels = ['Creating resource group rg-lab-4821', 'Deploying ' + plat.name + ' project', 'Deploying model and knowledge', 'Applying guardrails & $15 budget'];
   const stages = labels.map((label, i) => {
@@ -33,23 +42,60 @@ export default function LabLauncher() {
       dot: done ? 'background: #30D158; border: 0' : cur ? 'border: 2px solid #3E6AE1; border-top-color: transparent; animation: spin 0.8s linear infinite' : 'border: 2px solid #33333B',
     };
   });
-  const ready = s.stage >= 4;
+  const isFailed = !!s.error;
+  const isReady = s.stage >= 4 && !isFailed;
+  const isIdle = s.stage < 0 && !isFailed;
+  const isBusy = s.stage >= 0 && !isReady && !isFailed;
+  const expiresText = s.expiresAt
+    ? new Date(s.expiresAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+    : null;
   const vals = {
     tabs, p: { ...plat, steps: plat.steps.map((t, i) => ({ n: i + 1, t })) },
     live: isLive, comingSoon: !isLive, stages,
-    idle: s.stage < 0, busy: s.stage >= 0 && !ready, ready,
-    statusText: ready ? 'Ready · expires in 2h 00m' : s.stage >= 0 ? 'Provisioning… about 90 s' : 'Not started',
-    statusColor: ready ? 'color: #5BE584' : 'color: #F4F4F5',
-    subText: ready ? 'Signed in to your sandbox. It is deleted automatically when it expires.' : 'An isolated sandbox is created just for you',
-    provision: () => {
-      setState({ stage: 0 });
+    idle: isIdle, busy: isBusy, ready: isReady, failed: isFailed, errorText: s.error,
+    statusText: isFailed ? 'Provisioning failed' : isReady ? `Ready · expires ${expiresText}` : isBusy ? 'Provisioning… calling real Azure' : 'Not started',
+    statusColor: isFailed ? 'color: #FF6B6B' : isReady ? 'color: #5BE584' : 'color: #F4F4F5',
+    subText: isFailed ? s.error : isReady ? 'This is a real Azure resource in rg-ai-workboard-labs. It is deleted automatically when it expires.' : 'An isolated sandbox is created just for you',
+    portalUrl: s.portalUrl,
+    provision: async () => {
+      setState({ stage: 0, error: null, deploymentName: null, storageAccountName: null, accountName: null, portalUrl: null, expiresAt: null });
       clearInterval(timer.current);
-      let n = 0;
-      timer.current = window.setInterval(() => {
-        n += 1;
-        setState({ stage: n });
-        if (n >= 4) clearInterval(timer.current);
-      }, 900);
+      try {
+        const res = await fetch(`${LABS_API_BASE}/provision`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ learnerId: 'local-test', platform: s.plat }),
+        });
+        if (!res.ok) throw new Error(`provision request failed with status ${res.status}`);
+        const data = await res.json();
+        setState({ deploymentName: data.deploymentName, storageAccountName: data.storageAccountName, accountName: data.accountName, expiresAt: data.expiresAt, stage: 1 });
+        const statusQuery = data.accountName
+          ? `accountName=${data.accountName}`
+          : `storageAccountName=${data.storageAccountName}`;
+        timer.current = window.setInterval(async () => {
+          try {
+            const statusRes = await fetch(
+              `${LABS_API_BASE}/status?deploymentName=${data.deploymentName}&${statusQuery}`
+            );
+            if (!statusRes.ok) throw new Error(`status request failed with status ${statusRes.status}`);
+            const statusData = await statusRes.json();
+            if (statusData.stage < 0) {
+              setState({ error: 'Azure reported the deployment failed.' });
+              clearInterval(timer.current);
+              return;
+            }
+            setState({ stage: statusData.stage, portalUrl: statusData.portalUrl });
+            if (statusData.stage >= 4) clearInterval(timer.current);
+          } catch (err) {
+            console.error('Failed to check lab status', err);
+            setState({ error: 'Could not reach the backend to check status.' });
+            clearInterval(timer.current);
+          }
+        }, 2000);
+      } catch (err) {
+        console.error('Failed to start provisioning', err);
+        setState({ error: 'Could not reach the backend — is it running on localhost:7071?' });
+      }
     },
     toggleGuide: () => setState({ guide: !s.guide }),
     guideOnAttr: s.guide ? 'true' : 'false',
@@ -57,14 +103,14 @@ export default function LabLauncher() {
     knobStyle: s.guide ? 'left: 21px' : 'left: 3px',
     startHref: s.guide ? '/setup' : '/guided',
   };
-  const { busy, comingSoon, guideOnAttr, idle, knobStyle, live, p, provision, startHref, statusColor, statusText, subText, toggleGuide, trackStyle } = vals;
+  const { busy, comingSoon, failed, guideOnAttr, idle, knobStyle, live, p, portalUrl, provision, ready, startHref, statusColor, statusText, subText, toggleGuide, trackStyle } = vals;
 
   return (
     <>
       <style>{pageCss}</style>
-      <div style={{ width: "100%", minWidth: "1440px", height: "100vh", minHeight: "900px", display: "flex", background: "#0B0B0D", overflow: "hidden" }}>
+      <div style={{ width: "100%", height: "100%", display: "flex", background: "#0B0B0D", overflow: "hidden" }}>
         <Sidebar active="/labs" />
-        <main style={{ flexGrow: "1", padding: "36px 48px", display: "flex", flexDirection: "column", gap: "24px", minWidth: "0" }}>
+        <main className="no-scrollbar" style={{ flexGrow: "1", minHeight: "0", padding: "36px 48px", display: "flex", flexDirection: "column", gap: "24px", minWidth: "0", overflow: "auto" }}>
           <div>
             <div style={{ fontSize: "13px", color: "#8B8B94", letterSpacing: "0.08em", textTransform: "uppercase" }}>
               Hands-on labs
@@ -200,12 +246,25 @@ export default function LabLauncher() {
                         </button>
                       </>
                     )}
+                    {failed && (
+                      <>
+                        <button className="btn" onClick={provision} style={{ width: "100%" }}>
+                          Retry
+                        </button>
+                      </>
+                    )}
                     {ready && (
                       <>
                         <div style={{ display: "flex", gap: "10px" }}>
-                          <Link to="/guided" className="btn ghost" style={{ flexGrow: "1" }}>
-                            Open portal only
-                          </Link>
+                          {portalUrl ? (
+                            <a href={portalUrl} target="_blank" rel="noreferrer" className="btn ghost" style={{ flexGrow: "1" }}>
+                              Open portal only
+                            </a>
+                          ) : (
+                            <Link to="/guided" className="btn ghost" style={{ flexGrow: "1" }}>
+                              Open portal only
+                            </Link>
+                          )}
                           <Link to={startHref} className="btn" style={{ flexGrow: "1" }}>
                             Start guided lab
                           </Link>

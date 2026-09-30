@@ -51,10 +51,10 @@ export default function Player() {
   return (
     <>
       <style>{pageCss}</style>
-      <div style={{ width: "100%", minWidth: "1440px", height: "100vh", minHeight: "900px", display: "flex", background: "#0B0B0D", overflow: "hidden" }}>
+      <div style={{ width: "100%", height: "100%", display: "flex", background: "#0B0B0D", overflow: "hidden" }}>
         <Sidebar active="/learn" />
         <div style={{ flexGrow: "1", display: "flex", minWidth: "0" }}>
-          <main style={{ flexGrow: "1", padding: "28px 40px", display: "flex", flexDirection: "column", gap: "18px", minWidth: "0" }}>
+          <main className="no-scrollbar" style={{ flexGrow: "1", minHeight: "0", padding: "28px 40px", display: "flex", flexDirection: "column", gap: "18px", minWidth: "0", overflow: "auto" }}>
             <div style={{ fontSize: "13px", color: "#8B8B94" }}>
               <Link to="/" style={{ color: "#A1A1AA" }}>
                 Azure AI Foundry Agents
@@ -64,7 +64,7 @@ export default function Player() {
             <h1 style={{ margin: "0", fontSize: "26px", fontWeight: "600", letterSpacing: "-0.02em" }}>
               4 · Agent instructions &amp; tools
             </h1>
-            <div style={{ position: "relative", width: "960px", height: "540px", borderRadius: "20px", overflow: "hidden", background: "#0E1322", border: "1px solid #1F1F24" }}>
+            <div style={{ position: "relative", width: "960px", height: "540px", flexShrink: "0", borderRadius: "20px", overflow: "hidden", background: "#0E1322", border: "1px solid #1F1F24" }}>
               <div style={{ position: "absolute", left: "0", top: "0", width: "960px", height: "460px", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: "28px" }}>
                 <div style={{ fontSize: "14px", letterSpacing: "0.14em", color: "#8FB0FF", fontWeight: "600" }}>
                   CORE IDEA
@@ -196,7 +196,7 @@ export default function Player() {
               </div>
             </div>
           </main>
-          <aside style={{ width: "360px", flexShrink: "0", borderLeft: "1px solid #1F1F24", display: "flex", flexDirection: "column" }}>
+          <aside className="no-scrollbar" style={{ width: "360px", flexShrink: "0", borderLeft: "1px solid #1F1F24", display: "flex", flexDirection: "column", overflow: "auto" }}>
             <div style={{ padding: "28px 24px 16px" }}>
               <div style={{ fontSize: "16px", fontWeight: "600" }}>
                 Course content

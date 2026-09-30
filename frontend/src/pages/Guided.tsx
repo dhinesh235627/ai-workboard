@@ -82,7 +82,7 @@ export default function Guided() {
   return (
     <>
       <style>{pageCss}</style>
-      <div style={{ width: "100%", minWidth: "1440px", height: "100vh", minHeight: "900px", background: "#0B0B0D", display: "flex", flexDirection: "column", overflow: "hidden" }}>
+      <div style={{ width: "100%", height: "100%", background: "#0B0B0D", display: "flex", flexDirection: "column", overflow: "hidden" }}>
         <header style={{ height: "56px", flexShrink: "0", display: "flex", alignItems: "center", gap: "16px", padding: "0 20px", borderBottom: "1px solid #1F1F24" }}>
           <div style={{ width: "32px", height: "32px", borderRadius: "10px", background: "#F4F4F5", color: "#0B0B0D", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: "700" }}>
             L
@@ -105,7 +105,8 @@ export default function Guided() {
             End session
           </Link>
         </header>
-        <div style={{ flexGrow: "1", display: "flex", gap: "20px", padding: "20px" }}>
+        <div style={{ flexGrow: "1", display: "flex", gap: "20px", padding: "20px", minHeight: "0" }}>
+          <div className="no-scrollbar" style={{ flexGrow: "1.6", minWidth: "0", overflow: "auto" }}>
           <div onMouseMove={track} style={{ position: "relative", width: "1040px", height: "784px", flexShrink: "0", borderRadius: "14px", outline: "2px solid #3E6AE1", outlineOffset: "2px", background: "#F6F7F9", overflow: "hidden", color: "#111827" }}>
             <div style={{ position: "absolute", left: "0", top: "0", right: "0", height: "48px", background: "#FFFFFF", borderBottom: "1px solid #E5E7EB", display: "flex", alignItems: "center", gap: "12px", padding: "0 20px", fontSize: "14px" }}>
               <span style={{ width: "22px", height: "22px", borderRadius: "6px", background: "#1E293B" }} />
@@ -194,7 +195,8 @@ export default function Guided() {
               </span>
             </div>
           </div>
-          <aside style={{ flexGrow: "1", display: "flex", flexDirection: "column", gap: "14px", minWidth: "0" }}>
+          </div>
+          <aside className="no-scrollbar" style={{ flexGrow: "1", display: "flex", flexDirection: "column", gap: "14px", minWidth: "0", overflow: "auto" }}>
             <div style={{ display: "flex", gap: "12px", alignItems: "center", padding: "12px", borderRadius: "16px", background: "#151518", border: "1px solid #1F1F24" }}>
               <div style={{ width: "96px", height: "60px", borderRadius: "10px", background: "#0E1322", display: "flex", alignItems: "center", justifyContent: "center" }}>
                 <svg width="40" height="40" viewBox="0 0 40 40" aria-hidden="true">
