@@ -1,52 +1,139 @@
-import { Fragment } from 'react';
+import { Fragment, useEffect, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import Sidebar from '../components/Sidebar';
 import { css } from '../lib/css';
 import { useMergeState } from '../lib/useMergeState';
 import pageCss from './Player.css?inline';
 
+const MEDIA = '/media/azure/foundry-agent';
+
+type Cue = { start: number; end: number; text: string };
+
+const toSeconds = (ts: string) => {
+  const [h, m, s] = ts.replace(',', '.').split(':');
+  return Number(h) * 3600 + Number(m) * 60 + Number(s);
+};
+
+const parseSrt = (raw: string): Cue[] =>
+  raw
+    .replace(/^\uFEFF/, '')
+    .replace(/\r/g, '')
+    .trim()
+    .split(/\n\n+/)
+    .map((block) => {
+      const rows = block.split('\n');
+      const i = rows.findIndex((r) => r.includes('-->'));
+      if (i < 0) return null;
+      const [a, b] = rows[i].split('-->').map((x) => x.trim());
+      return { start: toSeconds(a), end: toSeconds(b), text: rows.slice(i + 1).join(' ') };
+    })
+    .filter((c): c is Cue => c !== null);
+
+const fmt = (sec: number) => {
+  const n = Math.max(0, Math.floor(sec || 0));
+  return `${String(Math.floor(n / 60)).padStart(2, '0')}:${String(n % 60).padStart(2, '0')}`;
+};
+
 export default function Player() {
-  const [s, setState] = useMergeState({ audio: 'en', subs: 'es', playing: true, done: false });
-  const lines: Record<string, string> = {
-    en: 'An agent combines a model, instructions and tools to complete a task.',
-    es: 'Un agente combina un modelo, instrucciones y herramientas para completar una tarea.',
-    hi: 'एक एजेंट किसी कार्य को पूरा करने के लिए मॉडल, निर्देश और टूल्स को जोड़ता है।',
-    de: 'Ein Agent kombiniert ein Modell, Anweisungen und Tools, um eine Aufgabe zu erledigen.',
-    ja: 'エージェントは、モデル・指示・ツールを組み合わせてタスクを実行します。',
+  const [s, setState] = useMergeState({
+    audio: 'en', subs: 'en', playing: false, done: false,
+    cur: 0, dur: 0, cues: {} as Record<string, Cue[]>, tracks: {} as Record<string, string>,
+  });
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const audioRef = useRef<HTMLAudioElement>(null);
+  const langs = [['en', 'English'], ['es', 'Español'], ['hi', 'हिन्दी'], ['ar', 'العربية']];
+
+  // Load the subtitle tracks once.
+  useEffect(() => {
+    langs.forEach(([id]) => {
+      fetch(`${MEDIA}/subs-${id}.srt`)
+        .then((r) => r.text())
+        .then((raw) => setState((prev) => ({ cues: { ...prev.cues, [id]: parseSrt(raw) } })))
+        .catch((err) => console.error(`Failed to load ${id} subtitles`, err));
+    });
+  }, []);
+
+  // The video file has no audio; the narration plays from a separate track
+  // that follows the video's play/pause/seek state. Each track is fetched in
+  // full and played from a blob URL so seeking and switching language never
+  // wait on the network.
+  useEffect(() => {
+    let cancelled = false;
+    const urls: string[] = [];
+    langs.forEach(([id]) => {
+      fetch(`${MEDIA}/audio-${id}.mp3`)
+        .then((r) => r.blob())
+        .then((blob) => {
+          const url = URL.createObjectURL(blob);
+          urls.push(url);
+          if (!cancelled) setState((prev) => ({ tracks: { ...prev.tracks, [id]: url } }));
+        })
+        .catch((err) => console.error(`Failed to load ${id} audio`, err));
+    });
+    return () => {
+      cancelled = true;
+      urls.forEach((u) => URL.revokeObjectURL(u));
+    };
+  }, []);
+
+  const syncAudio = () => {
+    const vid = videoRef.current, a = audioRef.current;
+    if (vid && a && Math.abs(a.currentTime - vid.currentTime) > 0.3) a.currentTime = vid.currentTime;
   };
-  const langs = [['en', 'English'], ['es', 'Español'], ['hi', 'हिन्दी'], ['de', 'Deutsch'], ['ja', '日本語']];
+  const seek = (t: number) => {
+    const vid = videoRef.current;
+    if (!vid) return;
+    vid.currentTime = t;
+    if (audioRef.current) audioRef.current.currentTime = t;
+    setState({ cur: t });
+  };
+
   const on = 'background: #F4F4F5; color: #0B0B0D; border: 1px solid #F4F4F5; font-weight: 600';
   const off = 'background: transparent; color: #D4D4D8; border: 1px solid #33333B';
   const mk = (key: 'audio' | 'subs', list: string[][]) =>
     list.map(([id, label]) => ({ label, on: s[key] === id ? 'true' : 'false', style: s[key] === id ? on : off, pick: () => setState({ [key]: id }) }));
-  const doneBadge = 'background: rgba(48,209,88,0.14); color: #5BE584';
   const todo = 'background: #1F1F24; color: #A1A1AA';
   const cur = 'background: #3E6AE1; color: #FFFFFF';
+  const cue = (s.cues[s.subs] || []).find((c) => s.cur >= c.start && s.cur < c.end);
+  const pctNum = s.dur ? Math.min(100, (s.cur / s.dur) * 100) : 0;
   const vals = {
-    subtitle: lines[s.subs] || '',
-    showSubs: s.subs !== 'off',
+    subtitle: cue ? cue.text : '',
+    showSubs: s.subs !== 'off' && !!cue,
     playing: s.playing, paused: !s.playing,
     playLabel: s.playing ? 'Pause' : 'Play',
-    togglePlay: () => setState({ playing: !s.playing }),
+    togglePlay: () => {
+      const vid = videoRef.current;
+      if (!vid) return;
+      if (vid.paused) { if (s.done) seek(0); vid.play().catch(() => {}); } else vid.pause();
+    },
     done: s.done,
-    time: s.done ? '12:30 / 12:30' : '04:12 / 12:30',
-    pct: s.done ? '100%' : '34%',
-    jumpEnd: () => setState({ done: true, playing: false }),
-    rewatch: () => setState({ done: false, playing: true }),
+    time: `${fmt(s.cur)} / ${fmt(s.dur)}`,
+    pct: `${pctNum}%`,
+    jumpEnd: () => {
+      const vid = videoRef.current;
+      if (!vid) return;
+      vid.pause();
+      seek(s.dur);
+      setState({ done: true, playing: false });
+    },
+    rewatch: () => {
+      seek(Math.max(0, s.dur - 30));
+      setState({ done: false });
+      videoRef.current?.play().catch(() => {});
+    },
     audioOpts: mk('audio', langs),
     subOpts: mk('subs', langs.concat([['off', 'Off']])),
-    lessons: [
-      { icon: '✓', badge: doneBadge, title: '1 · What is an agent?', meta: 'Video · 9 min', href: '/learn', bg: '' },
-      { icon: '✓', badge: doneBadge, title: '2 · Models in Foundry', meta: 'Video · 11 min', href: '/learn', bg: '' },
-      { icon: '✓', badge: doneBadge, title: 'Quick check', meta: 'Quiz · 100%', href: '/quiz', bg: '' },
-      { icon: '▶', badge: cur, title: '4 · Agent instructions & tools', meta: 'Video · 12 min · playing', href: '/learn', bg: 'background: #16161B;' },
+    azureLessons: [
+      { icon: '▶', badge: cur, title: '1 · Build your first agent in Foundry', meta: `Video · ${fmt(s.dur || 198)} · playing`, href: '/learn', bg: 'background: #16161B;' },
       { icon: '?', badge: todo, title: 'Quick check', meta: 'Quiz · 3 questions', href: '/quiz', bg: '' },
       { icon: '⚗', badge: todo, title: 'Hands-on: Build an agent', meta: 'Lab · Azure AI Foundry · 25 min', href: '/labs', bg: '' },
       { icon: '◎', badge: todo, title: 'Guided session with Ava', meta: 'Voice + ghost cursor', href: '/setup', bg: '' },
-      { icon: '5', badge: todo, title: '5 · Grounding with your data', meta: 'Video · 14 min', href: '/learn', bg: '' },
+    ],
+    copilotLessons: [
+      { icon: '·', badge: todo, title: 'Copilot Studio lessons', meta: 'Coming soon', href: '/learn', bg: '' },
     ],
   };
-  const { audioOpts, done, jumpEnd, lessons, paused, pct, playLabel, playing, rewatch, showSubs, subOpts, subtitle, time, togglePlay } = vals;
+  const { audioOpts, azureLessons, copilotLessons, done, jumpEnd, paused, pct, playLabel, playing, rewatch, showSubs, subOpts, subtitle, time, togglePlay } = vals;
 
   return (
     <>
@@ -57,46 +144,44 @@ export default function Player() {
           <main className="no-scrollbar" style={{ flexGrow: "1", minHeight: "0", padding: "28px 40px", display: "flex", flexDirection: "column", gap: "18px", minWidth: "0", overflow: "auto" }}>
             <div style={{ fontSize: "13px", color: "#8B8B94" }}>
               <Link to="/" style={{ color: "#A1A1AA" }}>
-                Azure AI Foundry Agents
+                Azure
               </Link>
-              {" "}/ Section 2 · Build
+              {" "}/ AZ-900 · Foundry agents
             </div>
             <h1 style={{ margin: "0", fontSize: "26px", fontWeight: "600", letterSpacing: "-0.02em" }}>
-              4 · Agent instructions &amp; tools
+              1 · Build your first agent in Foundry
             </h1>
-            <div style={{ position: "relative", width: "960px", height: "540px", flexShrink: "0", borderRadius: "20px", overflow: "hidden", background: "#0E1322", border: "1px solid #1F1F24" }}>
-              <div style={{ position: "absolute", left: "0", top: "0", width: "960px", height: "460px", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: "28px" }}>
-                <div style={{ fontSize: "14px", letterSpacing: "0.14em", color: "#8FB0FF", fontWeight: "600" }}>
-                  CORE IDEA
-                </div>
-                <div style={{ display: "flex", alignItems: "center", gap: "18px", fontSize: "22px", fontWeight: "500" }}>
-                  <div style={{ padding: "18px 24px", borderRadius: "16px", background: "#182038", border: "1px solid #2B3656" }}>
-                    Model
-                  </div>
-                  <span style={{ color: "#8B8B94" }}>
-                    +
-                  </span>
-                  <div style={{ padding: "18px 24px", borderRadius: "16px", background: "#182038", border: "1px solid #2B3656" }}>
-                    Instructions
-                  </div>
-                  <span style={{ color: "#8B8B94" }}>
-                    +
-                  </span>
-                  <div style={{ padding: "18px 24px", borderRadius: "16px", background: "#182038", border: "1px solid #2B3656" }}>
-                    Tools
-                  </div>
-                  <span style={{ color: "#8B8B94" }}>
-                    =
-                  </span>
-                  <div style={{ padding: "18px 24px", borderRadius: "16px", background: "#F4F4F5", color: "#0B0B0D", fontWeight: "600" }}>
-                    Agent
-                  </div>
-                </div>
-              </div>
+            <div style={{ position: "relative", width: "100%", maxWidth: "960px", aspectRatio: "16 / 9", flexShrink: "0", borderRadius: "20px", overflow: "hidden", background: "#0E1322", border: "1px solid #1F1F24" }}>
+              <video
+                ref={videoRef}
+                src={`${MEDIA}/video.mp4`}
+                muted
+                playsInline
+                preload="metadata"
+                onClick={togglePlay}
+                onLoadedMetadata={(e) => setState({ dur: e.currentTarget.duration })}
+                onTimeUpdate={(e) => { setState({ cur: e.currentTarget.currentTime }); syncAudio(); }}
+                onPlay={() => { setState({ playing: true, done: false }); audioRef.current?.play().catch(() => {}); }}
+                onPause={() => { setState({ playing: false }); audioRef.current?.pause(); }}
+                onSeeked={syncAudio}
+                onEnded={() => { audioRef.current?.pause(); setState({ done: true, playing: false }); }}
+                style={{ position: "absolute", left: "0", top: "0", width: "100%", height: "100%", objectFit: "contain", background: "#0E1322", cursor: "pointer" }}
+              />
+              <audio
+                ref={audioRef}
+                src={s.tracks[s.audio]}
+                preload="auto"
+                onLoadedData={(e) => {
+                  const vid = videoRef.current;
+                  if (!vid) return;
+                  e.currentTarget.currentTime = vid.currentTime;
+                  if (!vid.paused) e.currentTarget.play().catch(() => {});
+                }}
+              />
               {showSubs && (
                 <>
                   <div style={{ position: "absolute", left: "80px", right: "80px", bottom: "76px", textAlign: "center" }}>
-                    <span style={{ display: "inline-block", padding: "8px 14px", borderRadius: "8px", background: "rgba(0,0,0,0.72)", fontSize: "20px", lineHeight: "1.4" }}>
+                    <span dir={s.subs === 'ar' ? 'rtl' : 'ltr'} style={{ display: "inline-block", padding: "8px 14px", borderRadius: "8px", background: "rgba(0,0,0,0.72)", fontSize: "20px", lineHeight: "1.4" }}>
                       {subtitle}
                     </span>
                   </div>
@@ -123,7 +208,7 @@ export default function Player() {
                 <div style={{ fontFamily: "'Geist Mono', monospace", fontSize: "13px", color: "#D4D4D8" }}>
                   {time}
                 </div>
-                <div style={{ flexGrow: "1", height: "4px", borderRadius: "2px", background: "#33333B", position: "relative" }}>
+                <div onClick={(e) => { const r = e.currentTarget.getBoundingClientRect(); seek(((e.clientX - r.left) / r.width) * s.dur); }} style={{ flexGrow: "1", height: "4px", borderRadius: "2px", background: "#33333B", position: "relative", cursor: "pointer" }}>
                   <div style={css(`width: ${pct}; height: 4px; border-radius: 2px; background: #F4F4F5`)} />
                   <div title="Quiz" style={{ position: "absolute", right: "-2px", top: "-4px", width: "12px", height: "12px", borderRadius: "50%", background: "#3E6AE1", border: "2px solid #0E1322" }} />
                 </div>
@@ -202,11 +287,36 @@ export default function Player() {
                 Course content
               </div>
               <div style={{ fontSize: "13px", color: "#8B8B94", marginTop: "4px" }}>
-                12 lessons · 3 labs · 38% complete
+                Azure · Copilot · 4 lessons · 1 lab
               </div>
             </div>
-            <div style={{ padding: "0 12px", display: "flex", flexDirection: "column", gap: "2px" }}>
-              {lessons.map((l, lIndex) => (
+            <div style={{ padding: "0 24px 8px", fontSize: "12px", fontWeight: "600", letterSpacing: "0.1em", color: "#8B8B94" }}>
+              AZURE
+            </div>
+            <div style={{ padding: "0 12px 16px", display: "flex", flexDirection: "column", gap: "2px" }}>
+              {azureLessons.map((l, lIndex) => (
+                <Fragment key={lIndex}>
+                  <Link to={l.href} className="row" style={css(`display: flex; align-items: center; gap: 12px; padding: 12px; border-radius: 12px; color: #F4F4F5; ${l.bg}`)}>
+                    <span style={css(`width: 26px; height: 26px; border-radius: 8px; flex-shrink: 0; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 600; ${l.badge}`)}>
+                      {l.icon}
+                    </span>
+                    <span style={{ flexGrow: "1", display: "flex", flexDirection: "column", gap: "2px" }}>
+                      <span style={{ fontSize: "14px", fontWeight: "500" }}>
+                        {l.title}
+                      </span>
+                      <span style={{ fontSize: "12px", color: "#8B8B94" }}>
+                        {l.meta}
+                      </span>
+                    </span>
+                  </Link>
+                </Fragment>
+              ))}
+            </div>
+            <div style={{ padding: "0 24px 8px", fontSize: "12px", fontWeight: "600", letterSpacing: "0.1em", color: "#8B8B94" }}>
+              COPILOT
+            </div>
+            <div style={{ padding: "0 12px 16px", display: "flex", flexDirection: "column", gap: "2px" }}>
+              {copilotLessons.map((l, lIndex) => (
                 <Fragment key={lIndex}>
                   <Link to={l.href} className="row" style={css(`display: flex; align-items: center; gap: 12px; padding: 12px; border-radius: 12px; color: #F4F4F5; ${l.bg}`)}>
                     <span style={css(`width: 26px; height: 26px; border-radius: 8px; flex-shrink: 0; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 600; ${l.badge}`)}>

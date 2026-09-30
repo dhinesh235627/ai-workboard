@@ -1,0 +1,51 @@
+1
+00:00:00,000 --> 00:00:09,000
+Let's build a simple AI agent using Microsoft Foundry. I'll head over to the portal to get started.
+
+2
+00:00:09,000 --> 00:00:16,350
+Here's my list of existing projects. To start fresh, I'll click 'Create project' in the top right.
+
+3
+00:00:16,350 --> 00:00:27,000
+I'll give the project a name — Foundry suggests one automatically, but you can change it. Under Advanced options, I'll choose a resource group and region.
+
+4
+00:00:27,000 --> 00:00:33,000
+Once that's set, I'll click Create.
+
+5
+00:00:33,000 --> 00:01:00,000
+Foundry takes a moment to provision the project's resources behind the scenes.
+
+6
+00:01:00,000 --> 00:01:11,690
+And we're in — this is the project home screen. I've got two paths: Build an agent, no code needed, or Code an agent for full control. I'll go with Build an agent.
+
+7
+00:01:11,690 --> 00:01:21,190
+This opens a quick dialog asking for a name — this becomes the agent's identifier. I'll keep the default Foundry generated, and click Create.
+
+8
+00:01:21,190 --> 00:01:57,000
+Foundry checks model capacity for a moment, and there's the agent builder. On the left: the model — already set to GPT-5 — plus Instructions, Tools, Knowledge, and Memory. On the right, a live chat panel to test the agent as I build it.
+
+9
+00:01:57,000 --> 00:02:03,000
+Let's start with Instructions — this tells the agent what it is and what it should do.
+
+10
+00:02:03,000 --> 00:02:27,000
+I'll write: 'You are the AI Animationz assistant. Your role is to help users understand and create AI-generated animations.'
+
+11
+00:02:27,000 --> 00:02:39,000
+Foundry already includes a Web search tool by default, and I can add more from here — for a simple agent, the defaults are enough.
+
+12
+00:02:39,000 --> 00:02:57,000
+Time to test it. I'll ask: 'hi what you can help me with' — and in a few seconds, I get a full response, listing exactly what it can help with and even offering a structured format to get started.
+
+13
+00:02:57,000 --> 00:03:07,000
+That's the whole flow — create a project, build an agent, write instructions, and test it right in the playground. No code required.
