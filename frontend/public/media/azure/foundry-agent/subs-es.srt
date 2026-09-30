@@ -1,0 +1,51 @@
+1
+00:00:00,000 --> 00:00:09,000
+Vamos a crear un agente de IA sencillo usando Microsoft Foundry. Iré al portal para empezar.
+
+2
+00:00:09,000 --> 00:00:16,350
+Aquí está mi lista de proyectos existentes. Para empezar de cero, haré clic en 'Create project' en la esquina superior derecha.
+
+3
+00:00:16,350 --> 00:00:27,000
+Le daré un nombre al proyecto — Foundry sugiere uno automáticamente, pero puedes cambiarlo. En Advanced options, elegiré un resource group y una región.
+
+4
+00:00:27,000 --> 00:00:33,000
+Una vez configurado, haré clic en Create.
+
+5
+00:00:33,000 --> 00:01:00,000
+Foundry tarda un momento en aprovisionar los recursos del proyecto en segundo plano.
+
+6
+00:01:00,000 --> 00:01:11,690
+Y ya estamos dentro — esta es la pantalla principal del proyecto. Tengo dos caminos: Build an agent, sin necesidad de código, o Code an agent, para control total. Elegiré Build an agent.
+
+7
+00:01:11,690 --> 00:01:21,190
+Esto abre un cuadro de diálogo rápido que pide un nombre — esto se convierte en el identificador del agente. Mantendré el nombre predeterminado que genera Foundry, y haré clic en Create.
+
+8
+00:01:21,190 --> 00:01:57,000
+Foundry verifica la capacidad del modelo por un momento, y ahí está el generador de agentes. A la izquierda: el modelo — ya configurado en GPT-5 — además de Instructions, Tools, Knowledge y Memory. A la derecha, un panel de chat en vivo para probar el agente mientras lo construyo.
+
+9
+00:01:57,000 --> 00:02:03,000
+Empecemos con Instructions — esto le indica al agente qué es y qué debe hacer.
+
+10
+00:02:03,000 --> 00:02:27,000
+Escribiré: 'You are the AI Animationz assistant. Your role is to help users understand and create AI-generated animations.'
+
+11
+00:02:27,000 --> 00:02:39,000
+Foundry ya incluye una herramienta de Web search por defecto, y puedo agregar más desde aquí — para un agente simple, los valores predeterminados son suficientes.
+
+12
+00:02:39,000 --> 00:02:57,000
+Es hora de probarlo. Preguntaré: 'hi what you can help me with' — y en unos segundos, obtengo una respuesta completa, que indica exactamente en qué puede ayudar e incluso ofrece un formato estructurado para empezar.
+
+13
+00:02:57,000 --> 00:03:07,000
+Ese es todo el proceso — crear un proyecto, construir un agente, escribir instrucciones, y probarlo directamente en el playground. No se necesita código.

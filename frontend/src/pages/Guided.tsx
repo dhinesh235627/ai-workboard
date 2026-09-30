@@ -2,15 +2,54 @@ import { Fragment, useEffect, useRef, type MouseEvent } from 'react';
 import { Link } from 'react-router-dom';
 import { css } from '../lib/css';
 import { useMergeState } from '../lib/useMergeState';
+import { Ava, DONE, SCRIPT, WELCOME, cursorLines, type CursorAction } from '../lib/ava';
 import pageCss from './Guided.css?inline';
 
 export default function Guided() {
   const [s, setState] = useMergeState({
     step: 0, mx: null as number | null, my: null as number | null,
-    listening: false, stuck: false, replay: false, pick: null as number | null,
+    stuck: false, replay: false, pick: null as number | null,
+    log: [] as string[], variant: 0, paused: false, speaking: false,
   });
   const replayTimer = useRef<number | undefined>(undefined);
-  useEffect(() => () => clearTimeout(replayTimer.current), []);
+  const ava = useRef<Ava | null>(null);
+  const logEnd = useRef<HTMLDivElement>(null);
+  const say = (lines: string[], variant: number, delayMs = 0) => {
+    setState({ speaking: true });
+    ava.current!.speak(lines, variant, false, (t) => setState((p) => ({ log: [...p.log, t] })), () => setState({ speaking: false }), delayMs);
+  };
+  // What Ava says for the current cursor position, per wording. Talk/Show me replay this.
+  const cue = useRef<(v: number) => string[]>((v) => SCRIPT[0][v]);
+  const prev = useRef<((v: number) => string[]) | null>(null); // the step before, for "I'm stuck"
+  const setCue = (fn: (v: number) => string[]) => { if (started.current) prev.current = cue.current; started.current = true; cue.current = fn; };
+  const started = useRef(false);
+  const welcomed = useRef(false);
+  useEffect(() => {
+    ava.current = new Ava();
+    ava.current.onPause = (paused) => setState({ paused });
+    // The real cursor (built elsewhere) announces where it's going:
+    //   window.dispatchEvent(new CustomEvent('ava:cursor', { detail: { label: 'New agent', action: 'click' } }))
+    // Optional: detail.say = custom sentences; detail.delay = ms until the cursor arrives (if sent at move start).
+    // Ava stays silent until then, so voice never runs ahead of the cursor.
+    const onCursor = (e: Event) => {
+      const d = (e as CustomEvent<{ label: string; action?: CursorAction; say?: string[]; delay?: number }>).detail;
+      setCue((v) => d.say ?? cursorLines(d.label, d.action ?? 'click', v));
+      setState({ variant: 0, stuck: false });
+      say(cue.current(0), 0, d.delay ?? 0);
+    };
+    window.addEventListener('ava:cursor', onCursor);
+    return () => { window.removeEventListener('ava:cursor', onCursor); clearTimeout(replayTimer.current); ava.current?.stop(); };
+  }, []);
+  // The built-in demo cursor speaks through the same path; the first step is preceded by the welcome.
+  useEffect(() => {
+    setState({ variant: 0, stuck: false });
+    const step = s.step;
+    setCue((v) => (step >= 5 ? DONE : SCRIPT[step][v]));
+    const intro = !welcomed.current && step === 0 ? WELCOME : [];
+    welcomed.current = true;
+    say([...intro, ...cue.current(0)], 0, intro.length ? 0 : 900); // 900ms = the demo cursor's travel time
+  }, [s.step]);
+  useEffect(() => { logEnd.current?.scrollIntoView({ block: 'nearest' }); }, [s.log]);
   const T = [
     { x: 302, y: 148, label: 'Click “New agent”', say: 'Let’s create your first agent. See my blue cursor? Click “New agent”.', hint: 'It’s the dark button just under the “Agents” heading, top left of the page.', t: 'Create a new agent' },
     { x: 850, y: 164, label: 'Name it here', say: 'Nice! Now give it a name. “HR policy helper” works well.', hint: 'Click the first box in the panel on the right, under “Agent name”.', t: 'Name the agent' },
@@ -34,7 +73,7 @@ export default function Guided() {
     text: i <= s.step ? 'color: #F4F4F5' : 'color: #8B8B94',
     dot: i < s.step ? 'background: #30D158; color: #0B0B0D' : i === s.step ? 'border: 2px solid #3E6AE1' : 'border: 2px solid #33333B',
   }));
-  const speaking = !s.listening;
+  const speaking = s.speaking && !s.paused;
   const bars = Array.from({ length: 10 }, (_, i) => ({
     s: speaking ? 'background: #8FB0FF; animation: wave 0.9s ease-in-out infinite; animation-delay: -' + ((i * 173) % 900) / 1000 + 's' : 'background: #33333B; transform: scaleY(0.3)',
   }));
@@ -63,21 +102,34 @@ export default function Guided() {
     modelVal: s.step >= 3 ? 'claude-sonnet · deployed' : 'Select a model', modelStyle: s.step >= 3 ? 'color: #111827' : 'color: #9CA3AF',
     instrVal: s.step >= 4 ? 'You are an HR policy assistant for [YOUR ORG]. Answer only from the attached policy. If unsure, say so and point to HR.' : 'Describe how the agent should behave…',
     instrStyle: s.step >= 4 ? 'color: #111827' : 'color: #9CA3AF',
-    caption: done ? 'You did it! Your agent is live. One quick question before we wrap up.' : cur.say,
     stuck: s.stuck && !done, stuckHint: cur.hint,
-    toggleStuck: () => setState({ stuck: !s.stuck }),
-    listening: s.listening, voiceState: s.listening ? 'Listening… you can interrupt anytime' : 'Speaking · Encouraging',
-    micPressed: s.listening ? 'true' : 'false',
-    micStyle: s.listening ? 'background: #3E6AE1; border-color: #3E6AE1' : '',
-    toggleMic: () => setState({ listening: !s.listening }),
+    voiceState: s.paused ? 'Paused' : s.speaking ? 'Teaching · ' + ['Calm', 'Encouraging', 'Relaxed'][s.variant % 3] : 'Your turn',
+    // Talk: say this step again in a different wording and voice style.
+    talk: () => {
+      const variant = (s.variant + 1) % 3;
+      setState({ variant });
+      say(cue.current(variant), variant);
+    },
+    // Calm teacher mode: reassure, walk through the previous step again slowly, then carry on with the current one.
+    toggleStuck: () => {
+      const recap = (prev.current ?? cue.current)(1);
+      setState({ speaking: true });
+      ava.current!.speak(
+        ['No worries at all, take a breath.', prev.current ? 'Let’s go over the last step once more, nice and slow.' : 'Let’s go over this step once more, nice and slow.', ...recap],
+        1, true, (t) => setState((p) => ({ log: [...p.log, t] })),
+        () => say(['Good. Now, ready? Let’s move on.', ...cue.current(0)], 0),
+      );
+    },
+    togglePause: () => ava.current?.toggle(),
     replay: () => {
       setState({ replay: true });
       clearTimeout(replayTimer.current);
       replayTimer.current = window.setTimeout(() => setState({ replay: false }), 60);
+      say(cue.current(s.variant), s.variant);
     },
     bars, steps, notDone: !done, done, card, cardAnswered: s.pick !== null,
   };
-  const { agentListText, caption, cardAnswered, formOpen, gVis, hit0, hit1, hit2, hit3, hit4, instrStyle, instrVal, listening, micPressed, micStyle, modelStyle, modelVal, nameStyle, nameVal, notDone, replay, stepNum, stuck, stuckHint, target, toggleMic, toggleStuck, track, uVis, ux, uy, voiceState } = vals;
+  const { agentListText, cardAnswered, formOpen, gVis, hit0, hit1, hit2, hit3, hit4, instrStyle, instrVal, modelStyle, modelVal, nameStyle, nameVal, notDone, replay, stepNum, stuck, stuckHint, talk, target, toggleStuck, togglePause, track, uVis, ux, uy, voiceState } = vals;
 
   return (
     <>
@@ -235,15 +287,16 @@ export default function Guided() {
                   ))}
                 </div>
               </div>
-              {listening && (
-                <>
-                  <div style={{ fontSize: "14px", color: "#A1A1AA", fontStyle: "italic" }}>
-                    You: “Which model should I choose here?”
+              <div style={{ fontSize: "12px", fontWeight: "600", letterSpacing: "0.08em", color: "#8B8B94" }}>
+                TRANSCRIPT
+              </div>
+              <div style={{ maxHeight: "210px", overflowY: "auto", display: "flex", flexDirection: "column", gap: "8px", fontSize: "16px", lineHeight: "1.5" }}>
+                {s.log.map((t, i) => (
+                  <div key={i} style={{ color: i === s.log.length - 1 ? "#F4F4F5" : "#8B8B94" }}>
+                    {t}
                   </div>
-                </>
-              )}
-              <div style={{ fontSize: "17px", lineHeight: "1.5", color: "#F4F4F5" }}>
-                {caption}
+                ))}
+                <div ref={logEnd} />
               </div>
               {stuck && (
                 <>
@@ -253,7 +306,7 @@ export default function Guided() {
                 </>
               )}
               <div style={{ display: "grid", gridTemplateColumns: "repeat(4, minmax(0, 1fr))", gap: "8px" }}>
-                <button className="ctl" onClick={toggleMic} aria-pressed={micPressed === 'true'} style={css(micStyle)}>
+                <button className="ctl" onClick={talk}>
                   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
                     <rect x="9" y="3" width="6" height="12" rx="3" />
                     <path d="M5 11a7 7 0 0 0 14 0M12 18v3" />
@@ -266,8 +319,8 @@ export default function Guided() {
                 <button className="ctl" onClick={toggleStuck}>
                   I'm stuck
                 </button>
-                <button className="ctl" aria-label="Pause session">
-                  Pause
+                <button className="ctl" onClick={togglePause} aria-pressed={s.paused}>
+                  {s.paused ? 'Resume' : 'Pause'}
                 </button>
               </div>
             </div>
