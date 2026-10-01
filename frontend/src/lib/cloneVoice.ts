@@ -38,12 +38,21 @@ export async function toWav(blob: Blob): Promise<Blob> {
   return new Blob([buf], { type: 'audio/wav' });
 }
 
-// Returns the new Fish Audio voice id.
-export async function cloneVoice(wav: Blob): Promise<string> {
+export type ClonedVoice = { personId: string; name: string; voiceId: string };
+
+// Clones and saves to blob storage (one blob per person_id) on the server.
+export async function cloneVoice(wav: Blob, name: string): Promise<ClonedVoice> {
   const form = new FormData();
   form.set('voices', wav, 'sample.wav');
   form.set('texts', CLONE_TEXT);
+  form.set('name', name);
   const r = await fetch(`${API_BASE}/api/voice-clone`, { method: 'POST', body: form });
   if (!r.ok) throw new Error('clone ' + r.status);
-  return (await r.json()).voiceId;
+  return r.json();
+}
+
+export async function listClonedVoices(): Promise<ClonedVoice[]> {
+  const r = await fetch(`${API_BASE}/api/voice-clone`);
+  if (!r.ok) throw new Error('list ' + r.status);
+  return r.json();
 }

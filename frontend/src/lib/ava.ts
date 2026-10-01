@@ -62,7 +62,20 @@ const STYLES: VoiceMetadata[] = [
   { style: 'professional', prosody: { rate: '0%', pitch: '-4%', pause_level: 'short' } }, // level, even, matter-of-fact
   { style: 'motivational', prosody: { rate: '+16%', pitch: '+9%', pause_level: 'short' } }, // fast, bright, punchy
 ];
-export const getPref = (k: string) => { try { return localStorage.getItem(k); } catch { return null; } };
+// Setup's style chips also change the words: 0 encouraging (warm, confident praise), 1 neutral (as written), 2 energetic (human reactions).
+const FLAVOR: string[][] = [
+  ['Great job so far, you’ve got this.', 'You’re doing really well.', 'Don’t worry, you’re stronger than this step.', 'That’s the spirit, keep going.'],
+  [],
+  ['Huhh, okay!', 'Wow, nice!', 'Hmm, okay, so…', 'Okay okay okay!', 'Whoa, look at that!', 'Alright, huhh, let’s go!'],
+];
+const hash = (t: string) => [...t].reduce((h, c) => (h * 31 + c.charCodeAt(0)) >>> 0, 7);
+export const flavor = (text: string, style: number | null) => {
+  const opts = style === null ? [] : FLAVOR[style] ?? [];
+  const h = hash(text);
+  // Opener picked by text hash: varies between lines, but same text -> same opener (cache-friendly).
+  return opts.length ? `${opts[h % opts.length]} ${text}` : text;
+};
+export const getPref =(k: string) => { try { return localStorage.getItem(k); } catch { return null; } };
 // QA/prod: API is a separate site (VITE_API_BASE_URL); local dev uses the vite /api proxy.
 export const API_BASE: string = import.meta.env.VITE_API_BASE_URL ?? '';
 export const setPref = (k: string, v: number | string) => { try { localStorage.setItem(k, String(v)); } catch { /* private mode: choice just isn't remembered */ } };
@@ -92,7 +105,8 @@ export class Ava {
   style: number | null = getPref('ava.style') === null ? null : Number(getPref('ava.style'));
   cloneId: string | null = getPref('ava.cloneId'); // Fish Audio model made from the learner's own recording
 
-  private async url(text: string, variant: number, slow: boolean) {
+  private async url(text: string, variant: number, slow: boolean, first = false) {
+    if (first && !slow) text = flavor(text, this.style); // opener once per speak(), on the first line only
     const clone = this.voice === CLONE;
     // Azure voices take SSML; the cloned voice (Fish Audio) takes plain text.
     const body = clone ? { text: text.replace(/[“”]/g, ''), clone: true, voiceId: this.cloneId ?? undefined } : { ssml: ssml(text, variant, slow, AZURE_VOICES[this.voice] ?? AZURE_VOICES[0], this.style) };
@@ -124,7 +138,7 @@ export class Ava {
     const t0 = performance.now();
     try {
       for (const [i, t] of lines.entries()) {
-        const u = await this.url(t, variant, slow);
+        const u = await this.url(t, variant, slow, i === 0);
         if (g !== this.gen) return;
         const wait = i === 0 ? delayMs - (performance.now() - t0) : 0;
         if (wait > 0) await new Promise((r) => setTimeout(r, wait));

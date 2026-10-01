@@ -4,7 +4,7 @@ import { css } from '../lib/css';
 import { useMergeState } from '../lib/useMergeState';
 import { STATUS_TEXT, useAttentionDetection } from '../lib/useAttentionDetection';
 import { Ava, CLONE, getPref, setPref } from '../lib/ava';
-import { CLONE_TEXT, MIN_MS, cloneVoice, startRecording, toWav } from '../lib/cloneVoice';
+import { CLONE_TEXT, MIN_MS, cloneVoice, listClonedVoices, startRecording, toWav, type ClonedVoice } from '../lib/cloneVoice';
 import pageCss from './Setup.css?inline';
 
 const INTRO = ['Hi, I’m Ava. I’ll guide you through every lab.', 'Hi, I’m Leo. I’ll walk you through every lab, step by step.', 'Hello! This is your team’s voice, guiding you through the lab.'];
@@ -16,7 +16,7 @@ const TEST = ['Hey, can you hear me? If this sounds clear, your speakers are rea
 
 export default function Setup() {
   const [s, setState] = useMergeState({ step: 0, c0: true, c1: false, mon: 0, voice: 0, style: 0, practiced: false, note: '',
-    rec: getPref('ava.cloneId') ? 'ready' : 'idle' as 'idle' | 'recording' | 'cloning' | 'ready', consent: false });
+    rec: getPref('ava.cloneId') ? 'ready' : 'idle' as 'idle' | 'recording' | 'cloning' | 'ready', consent: false, modal: false, name: '', saved: [] as ClonedVoice[] });
   const ava = useRef<Ava | null>(null);
   const recorder = useRef<Awaited<ReturnType<typeof startRecording>> | null>(null);
   // Record -> WAV -> clone (Fish Audio) -> remember the voice id -> play a test in the new voice.
@@ -27,12 +27,23 @@ export default function Setup() {
       const { blob, ms } = await recorder.current.stop();
       recorder.current = null;
       if (ms < MIN_MS) throw new Error('short');
-      setPref('ava.cloneId', await cloneVoice(await toWav(blob)));
-      setState({ rec: 'ready' });
+      const v = await cloneVoice(await toWav(blob), s.name);
+      setPref('ava.cloneId', v.voiceId);
+      setState({ rec: 'ready', saved: [v, ...s.saved] });
       speak(CLONE_TEST, CLONE);
     } catch (e) {
       setState({ rec: 'idle', note: (e as Error).message === 'short' ? '(That was too short. Please read the whole sentence, about 10 seconds.)' : '(Couldn’t clone your voice. Please try again.)' });
     }
+  };
+  const openClone = () => {
+    setState({ modal: true });
+    listClonedVoices().then((saved) => setState({ saved })).catch(() => setState({ note: '(Couldn’t load saved voices.)' }));
+  };
+  const pickSaved = (voiceId: string) => {
+    if (!voiceId) return;
+    setPref('ava.cloneId', voiceId);
+    setState({ rec: 'ready' });
+    speak(TEST, CLONE);
   };
   const toggleRecord = async () => {
     if (s.rec === 'recording') return finishRecording();
@@ -160,7 +171,7 @@ export default function Setup() {
   const monitors = [{ t: 'Display 1 · 2560 × 1440', preview: 'Built-in display' }, { t: 'Display 2 · 3840 × 2160', preview: 'External monitor' }]
     .map((m, i) => ({ ...m, border: s.mon === i ? sel : uns, on: s.mon === i ? 'true' : 'false', pick: () => setState({ mon: i }) }));
   const voices = [{ i: 'A', n: 'Ava', d: 'Warm and encouraging' }, { i: 'L', n: 'Leo', d: 'Calm and precise' }, { i: 'Y', n: 'Your team voice', d: 'Cloned voice · admin approval required' }]
-    .map((v, i) => ({ ...v, border: s.voice === i ? sel : uns, on: s.voice === i ? 'true' : 'false', pick: () => { setState({ voice: i }); setPref('ava.voice', i); if (i !== CLONE || getPref('ava.cloneId')) speak([INTRO[i]], i); } }));
+    .map((v, i) => ({ ...v, border: s.voice === i ? sel : uns, on: s.voice === i ? 'true' : 'false', pick: () => { setState({ voice: i }); setPref('ava.voice', i); if (i === CLONE) openClone(); else speak([INTRO[i]], i); } }));
   const styles = ['Encouraging', 'Neutral', 'Energetic'].map((t, i) => ({
     t, on: s.style === i ? 'true' : 'false', pick: () => { setState({ style: i }); setPref('ava.style', i); speak(SAMPLE, s.voice, i); },
     s: s.style === i ? 'background: #F4F4F5; color: #0B0B0D; border: 1px solid #F4F4F5; font-weight: 600' : 'background: transparent; border: 1px solid #33333B',
@@ -423,11 +434,19 @@ export default function Setup() {
                       </Fragment>
                     ))}
                   </div>
-                  {s.voice === CLONE && (
-                    <div style={{ padding: "16px 18px", borderRadius: "16px", background: "#101014", border: "1px solid #26262C", display: "flex", flexDirection: "column", gap: "12px" }}>
-                      <div style={{ fontSize: "14px", fontWeight: "600" }}>
+                  {s.voice === CLONE && s.modal && (
+                    <div onClick={() => s.rec !== 'recording' && s.rec !== 'cloning' && setState({ modal: false })} style={{ position: "fixed", inset: "0", background: "rgba(0,0,0,0.7)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 50 }}>
+                    <div onClick={(e) => e.stopPropagation()} style={{ width: "min(520px, 92vw)", maxHeight: "90vh", overflow: "auto", padding: "20px 22px", borderRadius: "16px", background: "#101014", border: "1px solid #26262C", display: "flex", flexDirection: "column", gap: "12px" }}>
+                      <div style={{ fontSize: "16px", fontWeight: "600" }}>
                         {s.rec === 'ready' ? '✓ Your voice is ready' : 'Create your team voice'}
                       </div>
+                      {s.saved.length > 0 && (
+                        <select value="" onChange={(e) => pickSaved(e.target.value)} style={{ height: "36px", borderRadius: "10px", background: "#1A1A20", color: "#F4F4F5", border: "1px solid #33333B", padding: "0 10px" }}>
+                          <option value="">Use an already cloned voice…</option>
+                          {s.saved.map((v) => <option key={v.personId} value={v.voiceId}>{v.name} · {v.personId.slice(0, 8)}</option>)}
+                        </select>
+                      )}
+                      <input placeholder="Name this voice (optional)" maxLength={40} value={s.name} onChange={(e) => setState({ name: e.target.value })} style={{ height: "36px", borderRadius: "10px", background: "#1A1A20", color: "#F4F4F5", border: "1px solid #33333B", padding: "0 10px" }} />
                       <label style={{ display: "flex", gap: "8px", alignItems: "flex-start", fontSize: "13px", color: "#A1A1AA" }}>
                         <input type="checkbox" checked={s.consent} onChange={(e) => setState({ consent: e.target.checked })} style={{ marginTop: "2px" }} />
                         This is my own voice, and I agree to a synthetic copy of it being created to guide my lab sessions.
@@ -447,7 +466,12 @@ export default function Setup() {
                             ▶ Test my voice
                           </button>
                         )}
+                        <button className="btn ghost" disabled={s.rec === 'recording' || s.rec === 'cloning'} onClick={() => setState({ modal: false })} style={{ marginLeft: "auto" }}>
+                          Done
+                        </button>
                       </div>
+                      {s.note && <div style={{ fontSize: "13px", color: "#FF8A80" }}>{s.note}</div>}
+                    </div>
                     </div>
                   )}
                   <div style={{ fontSize: "13px", color: "#A1A1AA" }}>
