@@ -21,11 +21,17 @@ window.AIWB_STEPS = window.AIWB_STEPS || [
   // already on screen: the dialog opened without a menu). It is not `exact`, because a menu item
   // usually carries a second line of description text.
   { host: 'ai.azure.com', optional: true, kind: 'text', match: ['Build an agent'], label: "Choose 'Build an agent' from the menu" },
-  { host: 'ai.azure.com', exact: true, kind: 'label', match: ['Agent name'], label: "Click the 'Agent name' box and type a name, for example HR policy helper" },
-  { host: 'ai.azure.com', exact: true, kind: 'text', match: ['Create agent and open playground', 'Create'], label: "Click 'Create'" },
-  { host: 'ai.azure.com', exact: true, kind: 'label', match: ['Model'], label: "Check the Model: pick the deployed gpt-4o-mini" },
-  { host: 'ai.azure.com', exact: true, kind: 'label', match: ['Instructions'], label: "Click 'Instructions' and paste the starter text from your lab card" },
-  { host: 'ai.azure.com', exact: true, kind: 'text', match: ['Add knowledge', 'Knowledge'], label: "Open 'Knowledge' and add the HR policy file" },
-  { host: 'ai.azure.com', exact: true, kind: 'text', match: ['Save'], label: "Click 'Save'" },
-  { host: 'ai.azure.com', kind: 'placeholder', match: ['Type a message', 'Type your message', 'Ask a question', 'Send a message', 'Message'], label: "Type a question here to test your agent in the playground" },
+  // The name box of the "create agent" dialog: by its label, else (renamed label) the first text box of
+  // the open dialog.
+  { host: 'ai.azure.com', exact: true, kind: 'label', match: ['Agent name'], fallback: 'dialoginput', label: "Type a name for your agent, for example HR policy helper" },
+  { host: 'ai.azure.com', exact: true, kind: 'text', match: ['Create agent and open playground', 'Create agent', 'Create'], label: "Click 'Create'" },
+  // The agent screen (playground). Seen on the real portal: a "Model: gpt-5" row, an Instructions box
+  // whose placeholder says "Write your prompt here to give your agent instructions.", a Save button
+  // at the top, a chat box "Message the agent...". NOTE the left menu also has an item called
+  // "Knowledge": that goes to a different page, so it is never used as a target.
+  { host: 'ai.azure.com', kind: 'text', match: ['Model:'], label: "Check the Model: pick the deployed gpt-4o-mini" },                                    // [live]
+  { host: 'ai.azure.com', kind: 'placeholder', match: ['Write your prompt here', 'give your agent instructions'], label: "Click 'Instructions' and paste the starter text from your lab card" },   // [live]
+  { host: 'ai.azure.com', exact: true, kind: 'text', match: ['Add knowledge', 'Add a knowledge base'], label: "Add the HR policy file (Tools / Knowledge section of this agent)" },
+  { host: 'ai.azure.com', exact: true, kind: 'text', match: ['Save'], label: "Click 'Save'" },                                                                                                     // [live]
+  { host: 'ai.azure.com', kind: 'placeholder', match: ['Message the agent', 'Type a message', 'Type your message', 'Ask a question', 'Send a message'], label: "Type a question here to test your agent" },   // [live]
 ];

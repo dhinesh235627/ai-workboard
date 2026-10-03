@@ -50,6 +50,32 @@
     { kind: 'text', match: 'Missing required', label: 'required' },
     { kind: 'text', match: '+ New agent', label: "Click '+ New agent'" },
   ];
+  // The label is not on screen but an open dialog has a text box: the structural fallback finds it.
+  if (q.indexOf('dlg') >= 0) window.AIWB_STEPS = [
+    { kind: 'label', match: ['Label that is not there'], fallback: 'dialoginput', label: 'type the name' },
+  ];
+  // The learner moved the page on by hand (a real click that changes the address) while the cursor
+  // waits for an earlier control: the cursor must move on. A page-made address change with NO real
+  // click must NOT move it (same mode, driven differently by the test).
+  if (q.indexOf('navmove') >= 0) window.AIWB_STEPS = [
+    { kind: 'text', match: 'Control the learner already used', label: 'earlier' },
+    { kind: 'text', match: '+ New agent', label: "Click '+ New agent'" },
+  ];
+  // Two steps ahead on screen (not just the next one): must never move by itself.
+  if (q.indexOf('navfar') >= 0) window.AIWB_STEPS = [
+    { kind: 'text', match: 'Control the learner already used', label: 'earlier' },
+    { kind: 'text', match: 'Also not on this screen', label: 'middle' },
+    { kind: 'text', match: '+ New agent', label: "Click '+ New agent'" },
+  ];
+  // A dialog whose FIRST field is a search box and whose real name box follows; plus a non-modal panel
+  // that must be ignored.
+  if (q.indexOf('dlghard') >= 0) window.AIWB_STEPS = [
+    { kind: 'label', match: ['Label that is not there'], fallback: 'dialoginput', label: 'type the name' },
+  ];
+  // A label whose control renders late: the fallback must NOT borrow the dialog's other box meanwhile.
+  if (q.indexOf('dlgpend') >= 0) window.AIWB_STEPS = [
+    { kind: 'label', match: ['Pending name'], fallback: 'dialoginput', label: 'type the name' },
+  ];
   // Nothing nearby on screen at all: plain timeout, only Skip.
   if (q.indexOf('nothing') >= 0) window.AIWB_STEPS = [
     { kind: 'text', match: 'Missing one', label: 'm0' },
@@ -87,6 +113,27 @@
 </head>
 <body>
 <div class="top">Fixture portal</div>
+<button id="goOn" onclick="location.hash='#learner-did-this'">Go on</button>
+<div role="dialog" aria-modal="true" id="dlg1" style="display:none;padding:12px;background:#fff;border:1px solid #888;margin:8px"><span>Choose a name</span> <input id="dlgIn" placeholder="my-agent"></div>
+<!-- A non-modal flyout that appears LATER in the document: the fallback must ignore it and must skip
+     the search box and the combobox inside the real dialog. -->
+<div role="dialog" aria-modal="false" id="flyout" style="display:none;padding:8px;border:1px dashed #999"><input id="flyIn" placeholder="notifications filter"></div>
+<div role="dialog" aria-modal="true" id="dlg2" style="display:none;padding:12px;background:#fff;border:1px solid #888;margin:8px">
+  <input id="dlgSearch" type="search" placeholder="search models">
+  <input id="dlgCombo" role="combobox" aria-expanded="false" placeholder="region">
+  <input id="dlgReal" placeholder="agent name"></div>
+<div role="dialog" aria-modal="true" id="dlg3" style="display:none;padding:12px;background:#fff;border:1px solid #888;margin:8px">
+  <label for="pendIn">Pending name</label><span id="pendSlot"></span><input id="dlgOther" placeholder="other field"></div>
+<script>
+  var qq = location.search;
+  if (qq.indexOf('dlghard') >= 0) { document.getElementById('dlg2').style.display = 'block'; document.getElementById('flyout').style.display = 'block'; }
+  else if (qq.indexOf('dlgpend') >= 0) {
+    document.getElementById('dlg3').style.display = 'block';
+    // the labelled input arrives late, exactly like a React form rendering in two passes
+    setTimeout(function () { var i = document.createElement('input'); i.id = 'pendIn'; document.getElementById('pendSlot').appendChild(i); }, 3000);
+  }
+  else if (qq.indexOf('dlg') >= 0) document.getElementById('dlg1').style.display = 'block';
+</script>
 <div class="wrap">
   <!-- An older blade: still on screen, carries a same-text duplicate of the real target. -->
   <div class="blade" id="bladeOld">

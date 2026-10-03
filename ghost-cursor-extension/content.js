@@ -81,6 +81,11 @@
 
   let index = startIndex;
   let stepStart = Date.now();
+  let actedAt = 0; // last REAL click/keypress by the learner in this page (never a scripted one)
+  // When the STEP began. Separate from stepStart, which navigation resets to restart the 2 s wait:
+  // the "you already did it" evidence must survive that reset.
+  let stepBeganAt = Date.now();
+  let stepHref = location.href; // where the page was when this step began: a change means the learner moved on
   let target = null;
   let lastHref = location.href;
   let navCount = 0;
@@ -182,7 +187,13 @@
       })
       .filter(([, s]) => s);
     const top = Math.max(0, ...scored.map(([, s]) => s));
-    return scored.filter(([, s]) => s === top).map(([el]) => el);
+    const best = scored.filter(([, s]) => s === top).map(([el]) => el);
+    // A "contains" match can hit a long summary line as well as the control itself ("Model: gpt-5" in a
+    // header vs the picker). The shortest visible text is the closest thing to the control.
+    if (top === 1 && best.length > 1) {
+      return best.slice().sort((a, b) => visibleText(a).length - visibleText(b).length);
+    }
+    return best;
   }
 
   const toControl = (el) => (!el ? null : el.matches(CONTROLS) ? el : el.querySelector(CONTROLS));
@@ -243,9 +254,18 @@
   }
 
   // Try each alternative wording in order; the first that finds something wins.
+  let pendingAssoc = false; // a label matched but its control has not rendered yet: wait, do not borrow
   function candidates(step) {
+    pendingAssoc = false;
     for (const w of wording(step)) {
       const found = candidatesFor(step.kind, norm(w), !!step.exact);
+      if (found.length) return found;
+    }
+    // A structural fallback (e.g. "the text box of the open dialog") is a LAST resort: only once the
+    // wait is over, and never while an explicit association is merely pending, or it would borrow the
+    // wrong field in the frame before the real one renders.
+    if (step.fallback && !pendingAssoc && Date.now() - stepStart >= TIMEOUT_MS) {
+      const found = candidatesFor(step.fallback, '', !!step.exact);
       if (found.length) return found;
     }
     return [];
@@ -254,7 +274,25 @@
   function candidatesFor(kind, want, exact) {
     switch (kind) {
       case 'text':
-        return bestByText([...document.querySelectorAll('button,a,[role=button],[role=link],[role=tab],[role=menuitem]')], want, exact);
+        return bestByText([...document.querySelectorAll('button,a,[role=button],[role=link],[role=tab],[role=menuitem],[role=combobox]')], want, exact);
+      case 'dialoginput': {
+        // The first ordinary text box of the top-most MODAL dialog. Non-modal flyouts and notification
+        // panes are excluded, and so are search, combobox, read-only and disabled fields.
+        const boxes = [...document.querySelectorAll('[role=dialog]:not([aria-modal=false]),dialog[open],[aria-modal=true]')]
+          .filter(isVisible);
+        if (!boxes.length) return [];
+        // A <dialog open> is in the browser's top layer, so it wins over anything else; otherwise the
+        // last one in the document is the newest.
+        const topLayer = boxes.filter((b) => b.tagName === 'DIALOG' && b.hasAttribute('open'));
+        const box = (topLayer.length ? topLayer : boxes).pop();
+        const fields = [...box.querySelectorAll('input,textarea')].filter((el) => {
+          if (!isVisible(el) || el.readOnly || el.disabled) return false;
+          if (el.getAttribute('role') === 'combobox' || el.hasAttribute('aria-expanded')) return false;
+          const t = (el.getAttribute('type') || 'text').toLowerCase();
+          return el.tagName === 'TEXTAREA' || ['text', 'search', 'email', 'url', ''].includes(t) ? t !== 'search' : false;
+        });
+        return fields.slice(0, 1);
+      }
       case 'placeholder':
         return [...document.querySelectorAll('input,textarea')]
           .filter((el) => isVisible(el) && norm(el.getAttribute('placeholder') || '').includes(want));
@@ -277,7 +315,7 @@
           .map(toControl);
         const merged = [...new Set([...byLabel, ...byAria])].filter((el) => el && isVisible(el));
         // An explicit association whose control has not rendered yet means "wait", not "borrow".
-        if (!merged.length && hits.some((h) => h.missing)) return [];
+        if (!merged.length && hits.some((h) => h.missing)) { pendingAssoc = true; return []; }
         return merged;
       }
       default:
@@ -330,10 +368,12 @@
   // When the current step cannot be found, look at the nearby steps of this site: is the control of a
   // later (ahead) or an earlier (back) one on screen? The answer is cached for 1.5 s so a page that
   // keeps changing does not re-resolve up to 9 steps on every update.
-  let lookCache = { at: 0, i: -1, res: null };
+  let lookCache = { at: 0, i: -1, href: '', res: null };
   let lookTimer = 0;
   function lookAround(i) {
-    if (lookCache.i === i && lookCache.res && performance.now() - lookCache.at < 1500) return lookCache.res;
+    // Keyed by the address too: an SPA route change (pushState fires no event) must not be answered
+    // from a cache filled on the previous page.
+    if (lookCache.i === i && lookCache.href === location.href && lookCache.res && performance.now() - lookCache.at < 1500) return lookCache.res;
     // The wording shown to the learner is the control's own visible text when it has one.
     const find = (j) => {
       if (!core.hostOk(STEPS[j], location.hostname)) return null;
@@ -348,7 +388,7 @@
     for (let j = i + 1; j <= Math.min(i + 3, STEPS.length - 1) && !ahead; j++) ahead = find(j);
     let back = null;
     for (let k = i - 1; k >= Math.max(0, i - 5) && !back; k--) back = find(k);
-    lookCache = { at: performance.now(), i, res: { ahead, back } };
+    lookCache = { at: performance.now(), i, href: location.href, res: { ahead, back } };
     return lookCache.res;
   }
 
@@ -390,6 +430,25 @@
         // merely renamed, still loading or ambiguous (so "not found") would be skipped unnoticed.
         const between = STEPS.slice(index + 1, around.ahead ? around.ahead.index : index + 1);
         if (step.optional && around.ahead && between.every((s) => s.optional)) { hooks.advance(around.ahead.index); return; }
+        // The learner did THIS step by hand. All of the following must hold, or we only offer the
+        // buttons below: a real click/keypress happened in this page during this step; the address
+        // changed since the step began; this tab is the visible one (a stale background tab must never
+        // move the shared step); the very NEXT step (never further: a renamed or still-loading control
+        // looks exactly like a missing one) is on screen; and it is still there on a fresh check, not
+        // just in the 1.5 s cache.
+        if (around.ahead && actedAt > stepBeganAt &&
+            location.href !== stepHref && document.visibilityState === 'visible' &&
+            (resolve(STEPS[around.ahead.index]) || {}).el) {
+          // Never silent: name every step being passed over, so a renamed control is visible as a
+          // skip the learner can question, not something that quietly disappears.
+          const passed = STEPS.slice(index, around.ahead.index).map((s) => wording(s)[0]);
+          banner.textContent = 'You already did that - moving on. Skipped: ' + passed.join(', ');
+          banner.classList.add('aiwb-on');
+          clearTimeout(navTimer);
+          navTimer = setTimeout(() => banner.classList.remove('aiwb-on'), NAV_SHOW_MS + 3000);
+          hooks.advance(around.ahead.index);
+          return;
+        }
         if (around.ahead) {
           jumpTo = around.ahead.index;
           jumpBtn.textContent = "Jump to '" + around.ahead.name + "'";
@@ -421,6 +480,8 @@
   function startStep(i) {
     index = i;
     stepStart = Date.now();
+    stepBeganAt = stepStart;
+    stepHref = location.href;
     target = null;
     if (index >= STEPS.length) {
       cursor.classList.remove('aiwb-on');
@@ -448,6 +509,9 @@
     const at = index;
     setTimeout(() => { if (alive && index === at) hooks.advance(at + 1); }, 0);
   }
+  const onUserAct = (e) => { if (e.isTrusted) actedAt = Date.now(); };
+  document.addEventListener('click', onUserAct, true);
+  document.addEventListener('keydown', onUserAct, true);
   document.addEventListener('click', onUse, true);
   endBtn.addEventListener('click', () => hooks.end());
   backBtn.addEventListener('click', () => {
@@ -473,7 +537,7 @@
     banner.classList.add('aiwb-on');
     clearTimeout(navTimer);
     navTimer = setTimeout(() => banner.classList.remove('aiwb-on'), NAV_SHOW_MS);
-    lookCache = { at: 0, i: -1, res: null }; // a new page: whatever was nearby before is not any more
+    lookCache = { at: 0, i: -1, href: '', res: null }; // a new page: whatever was nearby before is not any more
     stepStart = Date.now();
     armDeadline();
     schedule();
@@ -503,6 +567,8 @@
     if (raf) cancelAnimationFrame(raf);
     mutations.disconnect();
     document.removeEventListener('click', onUse, true);
+    document.removeEventListener('click', onUserAct, true);
+    document.removeEventListener('keydown', onUserAct, true);
     window.removeEventListener('hashchange', onNavigate);
     window.removeEventListener('popstate', onNavigate);
     window.removeEventListener('scroll', schedule, true);

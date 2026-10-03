@@ -116,22 +116,28 @@ const FOUNDRY_PAGE = `<!doctype html><title>foundry fixture</title>
   <section id="home">Welcome to Foundry</section>
   <section id="build" hidden><h2>Agents</h2><button id="bNew">New agent</button>
     <div id="menu" hidden><button id="bBuild">Build an agent</button><button id="bCode">Code an agent</button></div></section>
-  <section id="dialog" hidden class="dlg"><h3>Create an agent</h3>
-    <div class="row"><label for="agentName">Agent name</label><input id="agentName"></div>
+  <!-- A dialog whose name box has NO "Agent name" label (the real wording was never seen): only the
+       dialog fallback can find it. -->
+  <section id="dialog" hidden class="dlg" role="dialog" aria-modal="true"><h3>Create an agent</h3>
+    <div class="row"><span>Choose a name</span><input id="agentName" placeholder="my-agent"></div>
     <button id="bCreate">Create</button></section>
-  <section id="play" hidden><h3>Playground</h3>
-    <div class="row"><label for="mdl">Model</label><select id="mdl"><option>gpt-4o-mini</option></select></div>
-    <div class="row"><label for="instr">Instructions</label><textarea id="instr" rows="4"></textarea></div>
-    <div class="row"><button id="bKnow">Knowledge</button></div>
+  <!-- Shaped like the REAL agent screen seen on QA: Model row, Instructions box with its placeholder,
+       Save, chat box, and a left-menu "Knowledge" that goes to another page and must never be a target. -->
+  <section id="play" hidden><h3>test</h3>
+    <div class="row"><div id="mdl" role="combobox" tabindex="0">Model: gpt-5 <small>Global Standard deployment</small></div></div>
+    <div class="row"><h4>Instructions</h4><textarea id="instr" rows="4" placeholder="Write your prompt here to give your agent instructions."></textarea></div>
+    <div class="row"><button id="bKnow">Add knowledge</button></div>
     <div class="row"><button id="bSave">Save</button></div>
-    <div class="row"><input id="chat" placeholder="Type a message"></div></section>
+    <div class="row"><input id="chat" placeholder="Message the agent..."></div></section>
 </main>
+<aside style="position:absolute;right:8px;top:60px"><a href="#" role="link" id="navKnow">Knowledge</a></aside>
 <script>
   const show = (id) => { for (const s of document.querySelectorAll('section')) s.hidden = s.id !== id; };
   document.getElementById('tBuild').onclick = (e) => { e.preventDefault(); show('build'); };
   document.getElementById('bNew').onclick = () => { document.getElementById('menu').hidden = false; };
   document.getElementById('bBuild').onclick = () => show('dialog');
-  document.getElementById('bCreate').onclick = () => show('play');
+  // Like the real portal, creating the agent moves to a new address (the agent screen).
+  document.getElementById('bCreate').onclick = () => { show('play'); location.hash = '#/agents/test/playground'; };
 </script>`;
 try {
   // One session with the UNCHANGED extension.
@@ -201,13 +207,13 @@ try {
       ['#tBuild', "Click 'Build' in the top menu"],
       ['#bNew', "Click 'New agent'"],
       ['#bBuild', "Choose 'Build an agent' from the menu"],
-      ['#agentName', "Click the 'Agent name' box and type a name, for example HR policy helper"],
+      ['#agentName', 'Type a name for your agent, for example HR policy helper'],
       ['#bCreate', "Click 'Create'"],
       ['#mdl', 'Check the Model: pick the deployed gpt-4o-mini'],
       ['#instr', "Click 'Instructions' and paste the starter text from your lab card"],
-      ['#bKnow', "Open 'Knowledge' and add the HR policy file"],
+      ['#bKnow', 'Add the HR policy file (Tools / Knowledge section of this agent)'],
       ['#bSave', "Click 'Save'"],
-      ['#chat', 'Type a question here to test your agent in the playground'],
+      ['#chat', 'Type a question here to test your agent'],
     ];
     const seen = [];
     for (let i = 0; i < FLOW.length; i++) {
@@ -340,9 +346,41 @@ try {
       back: document.querySelector('#aiwb-ghost-root .aiwb-back').textContent,
     }));
     check('B21a drifted to the Model step: "Can\'t find \'Model\'" and "Go back to \'New agent\'" is offered',
-      drift.step === '6' && /Can't find 'Model'/.test(drift.text) && /Go back to 'New agent'/.test(drift.back), JSON.stringify(drift));
+      drift.step === '6' && /Can't find 'Model:'/.test(drift.text) && /Go back to 'New agent'/.test(drift.back), JSON.stringify(drift));
     await g.click('#aiwb-ghost-root .aiwb-back');
     check('B21b clicking it returns to "New agent" and points at it', await pointsAt(g, "Click 'New agent'", 6000), JSON.stringify(await rootState(g)));
+    await sendGuide(false);
+
+    // B22: THE SECOND SCREENSHOT. The learner creates the agent BY HAND (types a name, clicks Create)
+    // without clicking the name box the cursor points at. The page moves to the agent screen; the
+    // cursor must notice and move on to the agent-screen steps instead of staying on "Agent name".
+    await sendGuide(true, ACCOUNT);
+    const lab6 = await ctx.newPage();
+    await lab6.goto(LAB, { waitUntil: 'load' });
+    await appears(lab6, 6000);
+    await lab6.click('button');
+    const h = await ctx.newPage();
+    await h.goto('https://ai.azure.com/', { waitUntil: 'load' });
+    await pointsAt(h, "Click 'Build' in the top menu", 6000);
+    await h.click('#tBuild');
+    await pointsAt(h, "Click 'New agent'", 6000);
+    await h.click('#bNew');
+    await pointsAt(h, "Choose 'Build an agent' from the menu", 6000);
+    await h.click('#bBuild');
+    // The dialog's name box has no "Agent name" label: the dialog fallback must still find it.
+    check('B22a a dialog whose name box is not labelled "Agent name" is still found (dialog fallback)',
+      await pointsAt(h, 'Type a name for your agent, for example HR policy helper', 6000), JSON.stringify(await rootState(h)));
+    await h.fill('#agentName', 'test');
+    await h.click('#bCreate'); // by hand: the cursor never saw the name box being clicked
+    const moved = await pointsAt(h, 'Check the Model: pick the deployed gpt-4o-mini', 12000);
+    check('B22b after creating the agent by hand the cursor moves on to the agent-screen steps (does not stay on "Agent name")', moved, JSON.stringify(await rootState(h)));
+    const trap = await h.evaluate(() => {
+      const r = document.getElementById('aiwb-ghost-root').getBoundingClientRect ? null : null;
+      const ring = document.querySelector('#aiwb-ghost-root .aiwb-ring').getBoundingClientRect();
+      const k = document.getElementById('navKnow').getBoundingClientRect();
+      return Math.hypot(ring.left + ring.width / 2 - (k.left + k.width / 2), ring.top + ring.height / 2 - (k.top + k.height / 2));
+    });
+    check('B22c the cursor is not on the left-menu "Knowledge" link', trap > 40, String(trap));
     await sendGuide(false);
 
     check('B6c nothing left the machine (no failed/unfulfilled requests)', unfulfilled.filter((u) => !u.includes('localhost:5173')).length === 0, unfulfilled.join(','));

@@ -65,7 +65,10 @@ try {
     await page.getByRole('button', { name: /Snapshot on flag/i }).click();
     await page.waitForTimeout(300);
     await hide();
-    await page.waitForFunction(() => /uploaded/.test(document.body.innerText), null, { timeout: 8000 }).catch(() => {});
+    // Wait for the COUNTER line, not the word "uploaded": the consent paragraph above also contains
+    // "is uploaded", so a loose check passes before the snapshot state has rendered.
+    // The counter line renders at CAPTURE time with "0 uploaded", so wait for a non-zero count.
+    await page.waitForFunction(() => /[1-9]\d* uploaded/.test(document.body.innerText), null, { timeout: 8000 }).catch(() => {});
     note(posts.length === 1, 'expected exactly one upload with the toggle ON, got ' + posts.length);
     if (posts[0]) {
       out.detail.body = { keys: Object.keys(posts[0]).sort(), reason: posts[0].reason, imagePrefix: String(posts[0].image).slice(0, 23), imageChars: String(posts[0].image).length };

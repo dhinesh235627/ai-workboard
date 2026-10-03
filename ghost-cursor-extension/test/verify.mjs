@@ -141,12 +141,19 @@ export default async function run(page) {
   const tv = await vis('.aiwb-status');
   note(tv.op > 0.9 && /Can't find/.test(tv.text) && tv.w > 0, 'timeout message not visible: ' + JSON.stringify(tv));
   // GC-03: navigate AFTER the first deadline has fired; a stable targetless page must time out again.
+  // (A page with NOTHING nearby on screen: if a later control were visible, navigating by hand would
+  // now correctly move the cursor on instead, which is tested separately as "navmove".)
+  await page.goto(BASE + '?nothing=1', { waitUntil: 'load' });
+  await waitState('timeout', 3500).catch(() => {});
   await page.evaluate(() => { location.hash = '#after-deadline'; });
   await page.waitForTimeout(700);
   const mid = (await state()).state;
   await waitState('timeout', 3500).catch(() => {});
   note(mid !== 'timeout', 'navigation did not restart the step deadline (state stayed ' + mid + ')');
-  note((await state()).state === 'timeout', 'targetless page never timed out again after navigation');
+  note((await state()).state === 'timeout' && (await state()).step === '0', 'targetless page never timed out again after navigation');
+  // back to the page whose target appears later
+  await page.goto(BASE + '?missing=1', { waitUntil: 'load' });
+  await waitState('timeout', 3000).catch(() => {});
   await page.evaluate(() => {
     const b = document.createElement('button'); b.id = 't1'; b.textContent = '+ New agent';
     document.getElementById('slot1').appendChild(b);
@@ -269,6 +276,61 @@ export default async function run(page) {
   const ojUi = await page.evaluate((r) => ({ jump: document.querySelector(r + ' .aiwb-jump').hidden, text: document.querySelector(r + ' .aiwb-jump').textContent }), R);
   note(oj.step === '0' && oj.state === 'timeout', 'an optional step jumped over a required step by itself: ' + JSON.stringify(oj));
   note(!ojUi.jump && /Jump to '\+ New agent'/.test(ojUi.text), 'the later control was not OFFERED as a manual Jump: ' + JSON.stringify(ojUi));
+
+  // ---- dialog fallback: the label is not there, but the open dialog's text box is found ---------
+  await page.goto(BASE + '?dlg=1', { waitUntil: 'load' });
+  await waitState('pointing', 4000).catch(() => {});
+  const dlgOff = await ringVsTarget('#dlgIn');
+  note((await state()).state === 'pointing' && dlgOff.dx <= 8 && dlgOff.dy <= 8, 'dialog fallback did not find the dialog text box: ' + JSON.stringify(await state()));
+
+  // ---- the page changed its own address and the learner did NOTHING: must NOT move ------------
+  await page.goto(BASE + '?navmove=1', { waitUntil: 'load' });
+  await page.waitForTimeout(400);
+  await page.evaluate(() => { location.hash = '#page-did-this'; }); // scripted: no real click
+  await waitState('timeout', 6000).catch(() => {});
+  await page.waitForTimeout(1500);
+  const auto = await state();
+  note(auto.step === '0' && auto.state === 'timeout', 'a page-made address change moved the cursor on without the learner doing anything: ' + JSON.stringify(auto));
+
+  // ---- the LEARNER really clicked and the address changed: move on to the next step ------------
+  await page.goto(BASE + '?navmove=1', { waitUntil: 'load' });
+  await page.waitForTimeout(400);
+  await page.click('#goOn'); // a real click (trusted), which changes the address
+  await waitState('pointing', 8000).catch(() => {});
+  const nm = await state();
+  const nmOff = await ringVsTarget('#t1');
+  note(nm.step === '1' && nm.state === 'pointing' && nmOff.dx <= 8 && nmOff.dy <= 8, 'cursor did not move on after the learner clicked and the page changed: ' + JSON.stringify(nm));
+
+  // ---- it may pass over a step that is no longer reachable, but must SAY which --------------
+  await page.goto(BASE + '?navfar=1', { waitUntil: 'load' });
+  await page.waitForTimeout(400);
+  await page.click('#goOn');
+  await waitState('pointing', 8000).catch(() => {});
+  const nf = await state();
+  const nfBanner = await page.evaluate((r) => document.querySelector(r + ' .aiwb-banner').textContent, R);
+  const nfOff = await ringVsTarget('#t1');
+  note(nf.step === '2' && nfOff.dx <= 8 && nfOff.dy <= 8, 'did not continue at the control that is on screen: ' + JSON.stringify(nf));
+  note(/Skipped:/.test(nfBanner) && /Also not on this screen/.test(nfBanner), 'the skipped step was not named: ' + nfBanner);
+
+  // ---- dialog fallback: ignore a non-modal flyout, a search box and a combobox ------------------
+  await page.goto(BASE + '?dlghard=1', { waitUntil: 'load' });
+  await waitState('pointing', 5000).catch(() => {});
+  const hardOff = await ringVsTarget('#dlgReal');
+  note((await state()).state === 'pointing' && hardOff.dx <= 8 && hardOff.dy <= 8, 'dialog fallback picked the wrong field (flyout / search / combobox): ' + JSON.stringify(await state()));
+
+  // ---- a label whose control is still rendering must WAIT, not borrow another box ---------------
+  await page.goto(BASE + '?dlgpend=1', { waitUntil: 'load' });
+  await page.waitForTimeout(2600); // past the 2 s deadline, before the real input arrives at 3 s
+  const pend = await state();
+  const borrowed = await page.evaluate((r) => {
+    const ring = document.querySelector(r + ' .aiwb-ring').getBoundingClientRect();
+    const o = document.querySelector('#dlgOther').getBoundingClientRect();
+    return Math.hypot(ring.left + ring.width / 2 - (o.left + o.width / 2), ring.top + ring.height / 2 - (o.top + o.height / 2));
+  }, R);
+  note(pend.state !== 'pointing' && borrowed > 20, 'the fallback borrowed another field while the real one was still rendering: ' + JSON.stringify([pend, borrowed]));
+  await waitState('pointing', 4000).catch(() => {});
+  const pendOff = await ringVsTarget('#pendIn');
+  note(pendOff.dx <= 8 && pendOff.dy <= 8, 'did not point at the labelled input once it rendered');
 
   // ---- nothing nearby on screen: plain timeout, Skip only (no Jump, no Go back) ---------------
   await page.goto(BASE + '?nothing=1', { waitUntil: 'load' });
