@@ -34,6 +34,39 @@
   if (q.indexOf('exactoff') >= 0) window.AIWB_STEPS = [{ kind: 'text', match: 'Create', label: 'go' }];
   if (q.indexOf('exacton') >= 0) window.AIWB_STEPS = [{ kind: 'text', match: 'Create', exact: true, label: 'go' }];
   if (q.indexOf('dupfield') >= 0) window.AIWB_STEPS = [{ kind: 'label', match: 'Twin label', label: 'go' }];
+  if (q.indexOf('skipahead') >= 0) window.AIWB_STEPS = [
+    { optional: true, kind: 'text', match: 'Menu option that never exists', label: 'optional menu step' },
+    { kind: 'text', match: '+ New agent', label: "Click '+ New agent'" },
+  ];
+  // NOT optional: a missing control with a later one on screen must be OFFERED, never skipped by itself.
+  if (q.indexOf('jump') >= 0) window.AIWB_STEPS = [
+    { kind: 'text', match: 'Renamed control that is missing', label: 'a step that cannot be found' },
+    { kind: 'text', match: '+ New agent', label: "Click '+ New agent'" },
+  ];
+  // An optional step followed by a REQUIRED step that cannot be found, then a control that is on screen:
+  // nothing may move by itself (the required step could just be renamed); a Jump is offered instead.
+  if (q.indexOf('optjump') >= 0) window.AIWB_STEPS = [
+    { optional: true, kind: 'text', match: 'Missing optional', label: 'optional' },
+    { kind: 'text', match: 'Missing required', label: 'required' },
+    { kind: 'text', match: '+ New agent', label: "Click '+ New agent'" },
+  ];
+  // Nothing nearby on screen at all: plain timeout, only Skip.
+  if (q.indexOf('nothing') >= 0) window.AIWB_STEPS = [
+    { kind: 'text', match: 'Missing one', label: 'm0' },
+    { kind: 'text', match: 'Missing two', label: 'm1' },
+  ];
+  // The only control on screen is 4 steps ahead: outside the look-ahead window.
+  if (q.indexOf('farahead') >= 0) window.AIWB_STEPS = [
+    { optional: true, kind: 'text', match: 'Missing 0', label: 'm0' },
+    { kind: 'text', match: 'Missing 1', label: 'm1' },
+    { kind: 'text', match: 'Missing 2', label: 'm2' },
+    { kind: 'text', match: 'Missing 3', label: 'm3' },
+    { kind: 'text', match: '+ New agent', label: "Click '+ New agent'" },
+  ];
+  if (q.indexOf('goback') >= 0) window.AIWB_STEPS = [
+    { kind: 'text', match: '+ New agent', label: "Click '+ New agent'" },
+    { kind: 'text', match: 'Control that is not on this screen', label: 'later step' },
+  ];
   if (q.indexOf('hostnone') >= 0) window.AIWB_STEPS = [{ host: 'other.example', kind: 'text', match: 'Try in playground', label: 'wrong site' }];
   if (q.indexOf('assoc') >= 0) {
     window.AIWB_STEPS = [{ kind: 'label', match: 'Full name', label: 'Click full name' }];

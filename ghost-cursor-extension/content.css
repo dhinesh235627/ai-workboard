@@ -22,9 +22,9 @@
 .aiwb-status { display: flex; align-items: center; gap: 12px; }
 .aiwb-status.aiwb-on { opacity: 1; transform: translate(-50%, 0); }
 /* The overlay never intercepts clicks, except this one button. */
-#aiwb-ghost-root .aiwb-skip { pointer-events: auto; cursor: pointer; border: 1px solid rgba(255,255,255,0.5); background: transparent;
+#aiwb-ghost-root .aiwb-skip, #aiwb-ghost-root .aiwb-back, #aiwb-ghost-root .aiwb-jump { pointer-events: auto; cursor: pointer; border: 1px solid rgba(255,255,255,0.5); background: transparent;
   color: #fff; font: 600 12px/1 "Segoe UI", system-ui, sans-serif; padding: 6px 10px; border-radius: 999px; }
-#aiwb-ghost-root .aiwb-skip:hover { background: rgba(255,255,255,0.15); }
+#aiwb-ghost-root .aiwb-skip:hover, #aiwb-ghost-root .aiwb-back:hover, #aiwb-ghost-root .aiwb-jump:hover { background: rgba(255,255,255,0.15); }
 
 /* "End guide": always reachable, small, bottom-right. The only other clickable part of the overlay. */
 #aiwb-ghost-root .aiwb-end { position: fixed; right: 16px; bottom: 16px; pointer-events: auto; cursor: pointer;

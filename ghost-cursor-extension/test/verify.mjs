@@ -236,6 +236,70 @@ export default async function run(page) {
   const k10 = await ringVsTarget('#in10');
   note(k10.dx <= 8 && k10.dy <= 8, 'label split across block elements did not match');
 
+  // ---- resync: ONLY an `optional` step is skipped by itself, and only after the 2 s wait --------
+  await page.goto(BASE + '?skipahead=1', { waitUntil: 'load' });
+  await page.waitForTimeout(900);
+  const optEarly = await state();
+  note(optEarly.step === '0' && optEarly.state === 'waiting', 'an optional step was skipped before the 2 s wait (control may just be slow): ' + JSON.stringify(optEarly));
+  await waitState('pointing', 4500).catch(() => {});
+  const sa = await state();
+  note(sa.state === 'pointing' && sa.step === '1', 'an optional step was not skipped when the NEXT control is already on screen: ' + JSON.stringify(sa));
+  const saOff = await ringVsTarget('#t1');
+  note(saOff.dx <= 8 && saOff.dy <= 8, 'after the automatic skip the cursor is not on the next control');
+
+  // ---- a NON-optional missing step is never skipped silently: a renamed button looks the same ----
+  await page.goto(BASE + '?jump=1', { waitUntil: 'load' });
+  await waitState('timeout', 4500).catch(() => {});
+  await page.waitForTimeout(1800); // well past any automatic move
+  const jumpState = await state();
+  note(jumpState.step === '0' && jumpState.state === 'timeout', 'a non-optional missing step was skipped by itself: ' + JSON.stringify(jumpState));
+  const jumpUi = await page.evaluate((r) => { const j = document.querySelector(r + ' .aiwb-jump'); const s = document.querySelector(r + ' .aiwb-skip'); return { jumpHidden: j.hidden, jumpText: j.textContent, skipHidden: s.hidden }; }, R);
+  note(!jumpUi.jumpHidden && /Jump to '\+ New agent'/.test(jumpUi.jumpText) && !jumpUi.skipHidden, 'no manual Jump offered for a later control on screen: ' + JSON.stringify(jumpUi));
+  await page.click(R + ' .aiwb-jump');
+  await page.waitForFunction((r) => document.querySelector(r).dataset.step === '1', R, { timeout: 3000 }).catch(() => {});
+  await waitState('pointing', 3000).catch(() => {});
+  const jOff = await ringVsTarget('#t1');
+  note((await state()).step === '1' && jOff.dx <= 8 && jOff.dy <= 8, 'Jump did not land on the later control');
+
+  // ---- an optional step must NOT skip a required step that sits between it and a visible control ----
+  await page.goto(BASE + '?optjump=1', { waitUntil: 'load' });
+  await waitState('timeout', 4500).catch(() => {});
+  await page.waitForTimeout(2000);
+  const oj = await state();
+  const ojUi = await page.evaluate((r) => ({ jump: document.querySelector(r + ' .aiwb-jump').hidden, text: document.querySelector(r + ' .aiwb-jump').textContent }), R);
+  note(oj.step === '0' && oj.state === 'timeout', 'an optional step jumped over a required step by itself: ' + JSON.stringify(oj));
+  note(!ojUi.jump && /Jump to '\+ New agent'/.test(ojUi.text), 'the later control was not OFFERED as a manual Jump: ' + JSON.stringify(ojUi));
+
+  // ---- nothing nearby on screen: plain timeout, Skip only (no Jump, no Go back) ---------------
+  await page.goto(BASE + '?nothing=1', { waitUntil: 'load' });
+  await waitState('timeout', 4500).catch(() => {});
+  const nothingUi = await page.evaluate((r) => ({ jump: document.querySelector(r + ' .aiwb-jump').hidden, back: document.querySelector(r + ' .aiwb-back').hidden, skip: document.querySelector(r + ' .aiwb-skip').hidden }), R);
+  note(nothingUi.jump && nothingUi.back && !nothingUi.skip, 'with nothing nearby on screen only Skip should show: ' + JSON.stringify(nothingUi));
+
+  // ---- the look-ahead window is 3 steps: a control 4 steps ahead is NOT used ---------------------
+  await page.goto(BASE + '?farahead=1', { waitUntil: 'load' });
+  await page.waitForTimeout(4200);
+  const far = await state();
+  const farJump = await page.evaluate((r) => document.querySelector(r + ' .aiwb-jump').hidden, R);
+  note(far.step === '0' && farJump, 'a control 4 steps ahead should be ignored: ' + JSON.stringify([far, farJump]));
+
+  // ---- resync: on a screen where an EARLIER step's control is still showing, offer "Go back" -----
+  await page.goto(BASE + '?goback=1', { waitUntil: 'load' });
+  await waitState('pointing');
+  await page.dispatchEvent('#t1', 'click'); // step 0 done -> step 1 ("later step") cannot be found
+  await waitState('timeout', 4500).catch(() => {});
+  const backShown = await page.evaluate((r) => { const b = document.querySelector(r + ' .aiwb-back'); return { hidden: b.hidden, text: b.textContent }; }, R);
+  note(!backShown.hidden && /Go back to '\+ New agent'/.test(backShown.text), 'no "Go back" offered when an earlier control is on screen: ' + JSON.stringify(backShown));
+  await page.click(R + ' .aiwb-back');
+  await page.waitForFunction((r) => document.querySelector(r).dataset.step === '0', R, { timeout: 3000 }).catch(() => {});
+  note((await state()).step === '0', 'Go back did not return to the earlier step');
+  await waitState('pointing', 3000).catch(() => {});
+  const backOff = await ringVsTarget('#t1');
+  note(backOff.dx <= 8 && backOff.dy <= 8, 'after Go back the cursor is not on the earlier control');
+  // and it never goes back by itself: wait, still on step 0 pointing (no ping-pong)
+  await page.waitForTimeout(2500);
+  note((await state()).step === '0' && (await state()).state === 'pointing', 'cursor moved by itself after Go back');
+
   // ---- Skip step: a missing control must never trap the learner --------------------------
   await page.goto(BASE + '?missing=1', { waitUntil: 'load' });
   await waitState('timeout', 3500).catch(() => {});

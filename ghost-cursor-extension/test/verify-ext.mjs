@@ -114,7 +114,8 @@ const FOUNDRY_PAGE = `<!doctype html><title>foundry fixture</title>
 <nav><a role="tab" href="#" id="tHome">Home</a><a role="tab" href="#" id="tBuild">Build</a><a role="tab" href="#" id="tModels">Models</a></nav>
 <main>
   <section id="home">Welcome to Foundry</section>
-  <section id="build" hidden><h2>Agents</h2><button id="bNew">New agent</button></section>
+  <section id="build" hidden><h2>Agents</h2><button id="bNew">New agent</button>
+    <div id="menu" hidden><button id="bBuild">Build an agent</button><button id="bCode">Code an agent</button></div></section>
   <section id="dialog" hidden class="dlg"><h3>Create an agent</h3>
     <div class="row"><label for="agentName">Agent name</label><input id="agentName"></div>
     <button id="bCreate">Create</button></section>
@@ -128,7 +129,8 @@ const FOUNDRY_PAGE = `<!doctype html><title>foundry fixture</title>
 <script>
   const show = (id) => { for (const s of document.querySelectorAll('section')) s.hidden = s.id !== id; };
   document.getElementById('tBuild').onclick = (e) => { e.preventDefault(); show('build'); };
-  document.getElementById('bNew').onclick = () => show('dialog');
+  document.getElementById('bNew').onclick = () => { document.getElementById('menu').hidden = false; };
+  document.getElementById('bBuild').onclick = () => show('dialog');
   document.getElementById('bCreate').onclick = () => show('play');
 </script>`;
 try {
@@ -198,6 +200,7 @@ try {
     const FLOW = [
       ['#tBuild', "Click 'Build' in the top menu"],
       ['#bNew', "Click 'New agent'"],
+      ['#bBuild', "Choose 'Build an agent' from the menu"],
       ['#agentName', "Click the 'Agent name' box and type a name, for example HR policy helper"],
       ['#bCreate', "Click 'Create'"],
       ['#mdl', 'Check the Model: pick the deployed gpt-4o-mini'],
@@ -225,7 +228,7 @@ try {
       await f.click(sel); // a real click advances the shared step
     }
     const okFlow = seen.every((x, i) => x.pill === FLOW[i][1] && x.dx <= 8 && x.dy <= 8);
-    check('B8 real steps drive the whole Foundry flow on ai.azure.com (Build ... chat), continuing from the portal step', okFlow, JSON.stringify(seen));
+    check('B8 real steps drive the whole Foundry flow on ai.azure.com (Build, New agent, the Build-an-agent menu, ... chat), continuing from the portal step', okFlow, JSON.stringify(seen));
     await f.waitForFunction(() => document.getElementById('aiwb-ghost-root')?.dataset.state === 'done', null, { timeout: 4000 }).catch(() => {});
     check('B8b the flow ends in the done state', (await rootState(f))?.state === 'done');
     // After the LAST global step the session ends everywhere (~6 s), and a new Foundry page shows nothing.
@@ -252,7 +255,7 @@ try {
     await appears(f3, 6000);
     await f3.waitForTimeout(2600);
     const resumed = await rootState(f3);
-    check('B15 a full reload mid-flow resumes at step "New agent", not at the start',
+    check('B15 a full reload mid-flow resumes at step "New agent" (global step 2), not at the start',
       !!resumed && resumed.step === '2' && /New agent/.test(resumed.pill || ''), JSON.stringify(resumed));
 
     // B16: End guide removes the overlay and the session is off for new pages.
@@ -309,6 +312,37 @@ try {
     await fb.waitForTimeout(1500);
     const sb = await rootState(fb);
     check('B20 a second Foundry tab follows the shared step (Build clicked in tab A -> tab B is on step 2)', !!sb && sb.step === '2', JSON.stringify(sb));
+    await sendGuide(false);
+
+    // B21: THE USER'S SCREENSHOT. The learner is on the Agents list, the cursor has drifted (steps were
+    // skipped) and says "Can't find 'Model'". It must offer "Go back to 'New agent'" and that must work.
+    await sendGuide(true, ACCOUNT);
+    const lab5 = await ctx.newPage();
+    await lab5.goto(LAB, { waitUntil: 'load' });
+    await appears(lab5, 6000);
+    await lab5.click('button');
+    const g = await ctx.newPage();
+    await g.goto('https://ai.azure.com/', { waitUntil: 'load' });
+    await pointsAt(g, "Click 'Build' in the top menu", 6000);
+    await g.click('#tBuild');
+    await pointsAt(g, "Click 'New agent'", 6000);
+    await g.evaluate(() => { document.getElementById('bNew').style.display = 'none'; }); // the dropdown button is not found
+    for (let i = 0; i < 4; i++) { // the learner presses Skip step four times: New agent, menu, Agent name, Create
+      await g.waitForFunction(() => document.getElementById('aiwb-ghost-root')?.dataset.state === 'timeout', null, { timeout: 8000 }).catch(() => {});
+      await g.click('#aiwb-ghost-root .aiwb-skip');
+      await g.waitForTimeout(300);
+    }
+    await g.evaluate(() => { document.getElementById('bNew').style.display = ''; }); // New agent is on the screen again
+    await g.waitForFunction(() => { const b = document.querySelector('#aiwb-ghost-root .aiwb-back'); return b && !b.hidden; }, null, { timeout: 9000 }).catch(() => {});
+    const drift = await g.evaluate(() => ({
+      step: document.getElementById('aiwb-ghost-root').dataset.step,
+      text: document.querySelector('#aiwb-ghost-root .aiwb-status-text').textContent,
+      back: document.querySelector('#aiwb-ghost-root .aiwb-back').textContent,
+    }));
+    check('B21a drifted to the Model step: "Can\'t find \'Model\'" and "Go back to \'New agent\'" is offered',
+      drift.step === '6' && /Can't find 'Model'/.test(drift.text) && /Go back to 'New agent'/.test(drift.back), JSON.stringify(drift));
+    await g.click('#aiwb-ghost-root .aiwb-back');
+    check('B21b clicking it returns to "New agent" and points at it', await pointsAt(g, "Click 'New agent'", 6000), JSON.stringify(await rootState(g)));
     await sendGuide(false);
 
     check('B6c nothing left the machine (no failed/unfulfilled requests)', unfulfilled.filter((u) => !u.includes('localhost:5173')).length === 0, unfulfilled.join(','));

@@ -97,7 +97,7 @@
     '<div class="aiwb-cursor"><div class="aiwb-ring"></div>' +
     '<svg class="aiwb-arrow" viewBox="0 0 22 22"><path d="M2 2l6.5 17 2.6-7.2L18.5 9z" fill="#3E6AE1" stroke="#fff" stroke-width="1.5" stroke-linejoin="round"/></svg>' +
     '<div class="aiwb-pill"></div></div><div class="aiwb-banner"></div>' +
-    '<div class="aiwb-status"><span class="aiwb-status-text"></span><button type="button" class="aiwb-skip" hidden>Skip step</button></div>' +
+    '<div class="aiwb-status"><span class="aiwb-status-text" role="status" aria-live="polite"></span><button type="button" class="aiwb-back" hidden></button><button type="button" class="aiwb-jump" hidden></button><button type="button" class="aiwb-skip" hidden>Skip step</button></div>' +
     '<button type="button" class="aiwb-end">End guide</button>';
   document.documentElement.appendChild(root);
   const cursor = root.querySelector('.aiwb-cursor');
@@ -106,6 +106,10 @@
   const status = root.querySelector('.aiwb-status');
   const statusText = root.querySelector('.aiwb-status-text');
   const skipBtn = root.querySelector('.aiwb-skip');
+  const backBtn = root.querySelector('.aiwb-back');
+  const jumpBtn = root.querySelector('.aiwb-jump');
+  let backTo = -1;
+  let jumpTo = -1;
   const endBtn = root.querySelector('.aiwb-end');
   root.dataset.navCount = '0';
 
@@ -311,6 +315,8 @@
     // If a control is missing, ambiguous, or Microsoft renamed it, the learner must never be stuck:
     // offer to move on to the next step.
     skipBtn.hidden = state === 'pointing' || state === 'done';
+    backBtn.hidden = !(state === 'timeout' && backTo >= 0);
+    jumpBtn.hidden = !(state === 'timeout' && jumpTo >= 0);
     root.dataset.state = state;
     root.dataset.step = String(index);
   }
@@ -319,6 +325,31 @@
     if (!target) return;
     const r = target.getBoundingClientRect();
     cursor.style.transform = 'translate(' + (r.left + r.width / 2) + 'px,' + (r.top + r.height / 2) + 'px)';
+  }
+
+  // When the current step cannot be found, look at the nearby steps of this site: is the control of a
+  // later (ahead) or an earlier (back) one on screen? The answer is cached for 1.5 s so a page that
+  // keeps changing does not re-resolve up to 9 steps on every update.
+  let lookCache = { at: 0, i: -1, res: null };
+  let lookTimer = 0;
+  function lookAround(i) {
+    if (lookCache.i === i && lookCache.res && performance.now() - lookCache.at < 1500) return lookCache.res;
+    // The wording shown to the learner is the control's own visible text when it has one.
+    const find = (j) => {
+      if (!core.hostOk(STEPS[j], location.hostname)) return null;
+      const el = (resolve(STEPS[j]) || {}).el;
+      if (!el) return null;
+      // A button's own text as the learner sees it (original capitalisation). For form fields the
+      // element is the input, whose text is its options or what the learner typed: use the step wording.
+      const t = STEPS[j].kind === 'text' ? (el.innerText || el.textContent || '').replace(/\s+/g, ' ').trim() : '';
+      return { index: j, name: t && t.length < 40 ? t : wording(STEPS[j])[0] };
+    };
+    let ahead = null;
+    for (let j = i + 1; j <= Math.min(i + 3, STEPS.length - 1) && !ahead; j++) ahead = find(j);
+    let back = null;
+    for (let k = i - 1; k >= Math.max(0, i - 5) && !back; k--) back = find(k);
+    lookCache = { at: performance.now(), i, res: { ahead, back } };
+    return lookCache.res;
   }
 
   function refresh() {
@@ -341,7 +372,38 @@
       target = null;
       cursor.classList.remove('aiwb-on');
       const late = Date.now() - stepStart >= TIMEOUT_MS;
-      say(late ? "Can't find '" + wording(step)[0] + "' on this page" : 'Looking for ' + wording(step)[0] + '...',
+      backTo = -1;
+      jumpTo = -1;
+      let hint = '';
+      if (late) {
+        const around = lookAround(index);
+        // The answer is cached for 1.5 s; make sure it is looked at again when it expires, even if the
+        // page has stopped changing by then (otherwise a stale "nothing nearby" could stay up).
+        const age = performance.now() - lookCache.at;
+        clearTimeout(lookTimer);
+        if (age < 1500) lookTimer = setTimeout(schedule, 1500 - age + 50);
+        // Only a step marked `optional` (a menu that may or may not be there) moves on by itself, and
+        // only when the very next control is already on screen. Anything else could silently skip a
+        // step the learner still has to do (a renamed button looks exactly like a missing one), so
+        // it is offered as a button instead.
+        // ...and only when every step in between is optional too: otherwise a required control that is
+        // merely renamed, still loading or ambiguous (so "not found") would be skipped unnoticed.
+        const between = STEPS.slice(index + 1, around.ahead ? around.ahead.index : index + 1);
+        if (step.optional && around.ahead && between.every((s) => s.optional)) { hooks.advance(around.ahead.index); return; }
+        if (around.ahead) {
+          jumpTo = around.ahead.index;
+          jumpBtn.textContent = "Jump to '" + around.ahead.name + "'";
+          hint = ' A later step is on this screen.';
+        }
+        // An EARLIER step's control is on screen: the learner is probably on a previous screen (a step
+        // was skipped). Offered, never automatic: an automatic move back could loop.
+        if (around.back) {
+          backTo = around.back.index;
+          backBtn.textContent = "Go back to '" + around.back.name + "'";
+          hint += ' An earlier step is still on this screen.';
+        }
+      }
+      say(late ? "Can't find '" + wording(step)[0] + "' on this page." + hint : 'Looking for ' + wording(step)[0] + '...',
         late ? 'timeout' : 'waiting');
     }
   }
@@ -388,6 +450,14 @@
   }
   document.addEventListener('click', onUse, true);
   endBtn.addEventListener('click', () => hooks.end());
+  backBtn.addEventListener('click', () => {
+    const at = index, to = backTo;
+    setTimeout(() => { if (alive && index === at && to >= 0) hooks.advance(to); }, 0);
+  });
+  jumpBtn.addEventListener('click', () => {
+    const at = index, to = jumpTo;
+    setTimeout(() => { if (alive && index === at && to >= 0) hooks.advance(to); }, 0);
+  });
   skipBtn.addEventListener('click', () => {
     const at = index;
     setTimeout(() => { if (alive && index === at) hooks.advance(at + 1); }, 0);
@@ -403,6 +473,7 @@
     banner.classList.add('aiwb-on');
     clearTimeout(navTimer);
     navTimer = setTimeout(() => banner.classList.remove('aiwb-on'), NAV_SHOW_MS);
+    lookCache = { at: 0, i: -1, res: null }; // a new page: whatever was nearby before is not any more
     stepStart = Date.now();
     armDeadline();
     schedule();
@@ -427,6 +498,7 @@
     clearInterval(navTick);
     clearTimeout(deadlineTimer);
     clearTimeout(refreshTimer);
+    clearTimeout(lookTimer);
     clearTimeout(navTimer);
     if (raf) cancelAnimationFrame(raf);
     mutations.disconnect();
