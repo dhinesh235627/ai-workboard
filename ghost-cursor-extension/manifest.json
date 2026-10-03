@@ -1,0 +1,37 @@
+{
+  "manifest_version": 3,
+  "name": "AI Workboard Ghost Cursor",
+  "version": "0.3.0",
+  "description": "Guides you click by click while you create an agent in the Azure portal and the Foundry portal. Only active after you press \"Start guided session\". Reads and sends nothing.",
+  "content_scripts": [
+    {
+      "matches": [
+        "https://portal.azure.com/*",
+        "https://ai.azure.com/*"
+      ],
+      "js": [
+        "steps.js",
+        "guide-core.js",
+        "content.js"
+      ],
+      "css": [
+        "content.css"
+      ],
+      "run_at": "document_idle"
+    },
+    {
+      "matches": [
+        "http://localhost:5173/*",
+        "https://ai-workboard-qa.azurewebsites.net/*",
+        "https://ai-workboard.azurewebsites.net/*"
+      ],
+      "js": [
+        "bridge.js"
+      ],
+      "run_at": "document_start"
+    }
+  ],
+  "permissions": [
+    "storage"
+  ]
+}

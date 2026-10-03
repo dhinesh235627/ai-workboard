@@ -1,0 +1,115 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Portal-like fixture</title>
+<link rel="stylesheet" href="../content.css">
+<style>
+  body { margin: 0; font: 14px "Segoe UI", sans-serif; background: #f3f2f1; }
+  .top { height: 44px; background: #0f6cbd; color: #fff; padding: 12px 16px; box-sizing: border-box; }
+  .wrap { display: flex; gap: 24px; padding: 24px; }
+  .blade { background: #fff; border: 1px solid #ccc; padding: 16px; width: 420px; min-height: 420px; }
+  .row { display: flex; flex-direction: column; gap: 6px; margin: 14px 0; }
+  .lbl { font-weight: 600; }
+  .ph, input, select, textarea { width: 100%; padding: 8px; text-align: left; font: inherit; box-sizing: border-box; }
+  button { font: inherit; padding: 8px 12px; margin: 4px 4px 4px 0; }
+</style>
+<script>
+  // Fixture-only: some modes swap the step list to exercise the other target kinds.
+  var q = location.search;
+  // Logic tests drive the extension with explicit steps (the real list in steps.js is per-site).
+  window.AIWB_STEPS = [
+    { kind: 'text', match: '+ New agent', label: "Click '+ New agent'" },
+    { kind: 'label', match: 'Agent name', label: "Click the 'Agent name' field" },
+    { kind: 'label', match: 'Model', label: "Open the 'Model' list" },
+    { kind: 'label', match: 'Instructions', label: "Click the 'Instructions' box" },
+    { kind: 'text', match: 'Try in playground', label: "Click 'Try in playground'" },
+  ];
+  var alts = function (kind, list) { window.AIWB_STEPS = [{ kind: kind, match: list, label: 'go' }]; };
+  if (q.indexOf('alts') >= 0) alts('text', ['Does not exist anywhere', 'Also missing', 'Try in playground']);
+  if (q.indexOf('hostmix') >= 0) window.AIWB_STEPS = [
+    { host: 'other.example', kind: 'text', match: 'Try in playground', label: 'wrong site' },
+    { kind: 'text', match: '+ New agent', label: "Click '+ New agent'" },
+  ];
+  if (q.indexOf('exactoff') >= 0) window.AIWB_STEPS = [{ kind: 'text', match: 'Create', label: 'go' }];
+  if (q.indexOf('exacton') >= 0) window.AIWB_STEPS = [{ kind: 'text', match: 'Create', exact: true, label: 'go' }];
+  if (q.indexOf('dupfield') >= 0) window.AIWB_STEPS = [{ kind: 'label', match: 'Twin label', label: 'go' }];
+  if (q.indexOf('hostnone') >= 0) window.AIWB_STEPS = [{ host: 'other.example', kind: 'text', match: 'Try in playground', label: 'wrong site' }];
+  if (q.indexOf('assoc') >= 0) {
+    window.AIWB_STEPS = [{ kind: 'label', match: 'Full name', label: 'Click full name' }];
+  }
+  var one = function (kind, match) { window.AIWB_STEPS = [{ kind: kind, match: match, label: 'go' }]; };
+  if (q.indexOf('lbl7') >= 0) one('label', 'Caption seven');
+  if (q.indexOf('async8') >= 0) one('label', 'Eight name');
+  if (q.indexOf('grp9') >= 0) one('label', 'Group nine');
+  if (q.indexOf('br10') >= 0) one('text', 'Ten words here');
+  if (q.indexOf('blk10') >= 0) one('label', 'Block label');
+  if (q.indexOf('kinds') >= 0) {
+    window.AIWB_STEPS = [
+      { kind: 'placeholder', match: 'Search resources', label: 'Click search' },
+      { kind: 'value', match: 'Create', label: 'Click Create' },
+    ];
+  }
+</script>
+</head>
+<body>
+<div class="top">Fixture portal</div>
+<div class="wrap">
+  <!-- An older blade: still on screen, carries a same-text duplicate of the real target. -->
+  <div class="blade" id="bladeOld">
+    <h3>Previous blade</h3>
+    <button id="oldDup">+ New agent</button>
+    <!-- Hidden duplicate (display:none ancestor) -->
+    <div style="display:none"><button id="hiddenDup">+ New agent</button></div>
+    <!-- Hidden-descendant decoys: visible buttons whose matching text is not rendered -->
+    <button id="decoyNone">Cancel<span style="display:none">+ New agent</span></button>
+    <button id="decoyVis">Cancel<span style="visibility:hidden">+ New agent</span></button>
+    <button id="decoyOpacity">Cancel<span style="opacity:0">+ New agent</span></button>
+    <!-- Hidden label decoy for the label kind -->
+    <div class="row"><div style="opacity:0">Agent name</div><button id="decoyLabel" class="ph">decoy field</button></div>
+    <div class="row"><input id="aName"><label for="aName"><span>Full name</span></label><input id="aOther"></div>
+    <div class="row"><input id="lbCorrect" aria-labelledby="cap7"><div id="cap7"><span>Caption seven</span></div><input id="lbWrong"></div>
+    <div id="late8" class="row"><label for="n8">Eight name</label><span id="slot8"></span><select id="sel8"><option>x</option></select></div>
+    <div class="row"><div role="group" aria-label="Group nine" id="grp9"><select id="sel9" aria-label="Group nine"><option>y</option></select></div></div>
+    <button id="br10">Ten words<br>here</button>
+    <button id="createDep">Create deployment</button>
+    <div class="row"><label for="tw1">Twin label</label><input id="tw1"></div>
+    <div class="row"><label for="tw2">Twin label</label><input id="tw2"></div>
+    <div class="row"><div id="blk"><div>Block</div><div>label</div></div><input id="in10"></div>
+    <div class="row"><input id="kindsSearch" placeholder="Search resources"><input id="kindsCreate" type="submit" value="Create"></div>
+  </div>
+
+  <div class="blade" id="bladeNew" data-blade>
+    <h3>New agent</h3>
+    <div id="slot1"></div>
+    <div class="row"><div class="lbl">Agent name</div><button id="t2" class="ph">Enter a name...</button></div>
+    <div class="row"><label for="t3" class="lbl">Model</label>
+      <select id="t3"><option>gpt-4o-mini</option><option>gpt-4o</option></select></div>
+    <div class="row"><div class="lbl">Instructions</div><textarea id="t4" rows="3" placeholder="You are a helpful agent"></textarea></div>
+    <div id="slot5"><button id="t5">Try in playground</button></div>
+  </div>
+</div>
+<script>
+  var mk = function () {
+    var b = document.createElement('button');
+    b.id = 't1'; b.textContent = '+ New agent';
+    return b;
+  };
+  var slot = document.getElementById('slot1');
+  // In the missing/delay modes the only '+ New agent' must be the one we control.
+  if (q.indexOf('missing') >= 0 || q.indexOf('delay') >= 0) {
+    var dup = document.getElementById('oldDup'); dup.parentNode.removeChild(dup);
+  }
+  if (q.indexOf('missing') >= 0) {
+    // never appears until the test injects it into #slot1
+  } else if (q.indexOf('delay') >= 0) {
+    setTimeout(function () { slot.appendChild(mk()); }, 900);
+  } else {
+    slot.appendChild(mk());
+  }
+</script>
+<script src="../steps.js"></script>
+<script src="../guide-core.js"></script>
+<script src="../content.js"></script>
+</body>
+</html>

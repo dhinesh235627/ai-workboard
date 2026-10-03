@@ -2,6 +2,8 @@ import { app } from "@azure/functions"
 import { DefaultAzureCredential } from "@azure/identity"
 import { ResourceManagementClient } from "@azure/arm-resources"
 import { grantFoundryAccess } from "../lib/foundryAccess.js"
+import { computeStatus } from "../lib/labStatus.js"
+import { API_VERSION_BY_TYPE } from "../lib/teardown.js"
 
 const RESOURCE_GROUP = process.env.LABS_RESOURCE_GROUP || "rg-ai-workboard-labs"
 // No login system exists yet, so there's no per-learner Azure AD identity to
@@ -9,17 +11,6 @@ const RESOURCE_GROUP = process.env.LABS_RESOURCE_GROUP || "rg-ai-workboard-labs"
 // real permission grant can be proven end-to-end; once real auth exists,
 // this should come from the signed-in user instead.
 const DEFAULT_LEARNER_OBJECT_ID = process.env.DEFAULT_LEARNER_OBJECT_ID
-
-// Maps Azure's real deployment provisioningState onto the same 4 stage
-// labels the /labs UI already shows, so swapping the fake timer for this
-// endpoint doesn't require changing the visual design at all.
-const STAGE_BY_STATE = {
-  Accepted: 0,
-  Running: 1,
-  Succeeded: 4,
-  Failed: -1,
-  Canceled: -1,
-}
 
 app.http("labsStatus", {
   methods: ["GET"],
@@ -42,45 +33,49 @@ app.http("labsStatus", {
     const credential = new DefaultAzureCredential()
     const client = new ResourceManagementClient(credential, subscriptionId)
 
-    try {
-      const deployment = await client.deployments.get(RESOURCE_GROUP, deploymentName)
-      const state = deployment.properties?.provisioningState || "Accepted"
-      const stage = STAGE_BY_STATE[state] ?? 0
-
-      let portalUrl = null
-      let accessError = null
-      if (state === "Succeeded" && accountName && projectName) {
-        portalUrl = `https://portal.azure.com/#@/resource/subscriptions/${subscriptionId}/resourceGroups/${RESOURCE_GROUP}/providers/Microsoft.CognitiveServices/accounts/${accountName}/overview`
-        if (DEFAULT_LEARNER_OBJECT_ID) {
-          try {
-            await grantFoundryAccess(
-              {
-                credential,
-                subscriptionId,
-                resourceGroup: RESOURCE_GROUP,
-                accountName,
-                projectName,
-                learnerObjectId: DEFAULT_LEARNER_OBJECT_ID,
-              },
-              (msg) => context.log(msg)
-            )
-          } catch (err) {
-            // Don't fail the whole status check over this — the resource is
-            // real and ready either way; the learner just won't be able to
-            // build an agent in the portal until this grant succeeds on a
-            // later poll.
-            context.error("Failed to grant Foundry access", err)
-            accessError = "Resource is ready, but granting portal access failed — see logs."
-          }
+    const result = await computeStatus({
+      getDeployment: (name) => client.deployments.get(RESOURCE_GROUP, name),
+      exists: async (type, name) => {
+        const [namespace, resourceType] = type.split("/")
+        try {
+          await client.resources.get(RESOURCE_GROUP, namespace, "", resourceType, name, API_VERSION_BY_TYPE[type])
+          return true
+        } catch (err) {
+          if (err.statusCode === 404) return false
+          throw err
         }
-      } else if (state === "Succeeded" && storageAccountName) {
-        portalUrl = `https://portal.azure.com/#@/resource/subscriptions/${subscriptionId}/resourceGroups/${RESOURCE_GROUP}/providers/Microsoft.Storage/storageAccounts/${storageAccountName}/overview`
-      }
-
-      return { jsonBody: { state, stage, portalUrl, accessError } }
-    } catch (err) {
-      context.error("Failed to read deployment status", err)
-      return { status: 500, jsonBody: { error: "Failed to read status", detail: String(err.message || err) } }
+      },
+      deploymentName, accountName, storageAccountName,
+    })
+    if (result.status !== 200) {
+      if (result.status >= 500) context.error(`labs status ${result.status}`)
+      return { status: result.status, jsonBody: result.body }
     }
+
+    const { state, stage } = result.body
+    let portalUrl = null
+    let accessError = null
+    if (state === "Succeeded" && accountName && projectName) {
+      portalUrl = `https://portal.azure.com/#@/resource/subscriptions/${subscriptionId}/resourceGroups/${RESOURCE_GROUP}/providers/Microsoft.CognitiveServices/accounts/${accountName}/overview`
+      if (DEFAULT_LEARNER_OBJECT_ID) {
+        try {
+          await grantFoundryAccess(
+            { credential, subscriptionId, resourceGroup: RESOURCE_GROUP, accountName, projectName, learnerObjectId: DEFAULT_LEARNER_OBJECT_ID },
+            (msg) => context.log(msg)
+          )
+        } catch (err) {
+          // Don't fail the whole status check over this — the resource is
+          // real and ready either way; the learner just won't be able to
+          // build an agent in the portal until this grant succeeds on a
+          // later poll.
+          context.error("Failed to grant Foundry access", err)
+          accessError = "Resource is ready, but granting portal access failed — see logs."
+        }
+      }
+    } else if (state === "Succeeded" && storageAccountName) {
+      portalUrl = `https://portal.azure.com/#@/resource/subscriptions/${subscriptionId}/resourceGroups/${RESOURCE_GROUP}/providers/Microsoft.Storage/storageAccounts/${storageAccountName}/overview`
+    }
+
+    return { jsonBody: { ...result.body, portalUrl, accessError } }
   },
 })

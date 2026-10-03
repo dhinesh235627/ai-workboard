@@ -5,7 +5,7 @@ const RESOURCE_GROUP = process.env.LABS_RESOURCE_GROUP || "rg-ai-workboard-labs"
 const PROJECTS_API_VERSION = "2026-07-15-preview"
 
 // API version per resource type — the generic beginDeleteById call needs one.
-const API_VERSION_BY_TYPE = {
+export const API_VERSION_BY_TYPE = {
   "Microsoft.Storage/storageAccounts": "2023-01-01",
   "Microsoft.CognitiveServices/accounts": "2025-06-01",
 }

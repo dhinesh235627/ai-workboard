@@ -3,6 +3,10 @@ import { Link } from 'react-router-dom';
 import { css } from '../lib/css';
 import { useMergeState } from '../lib/useMergeState';
 import { STATUS_TEXT, useAttentionDetection } from '../lib/useAttentionDetection';
+import { captureAndUpload, captureFrame, getLearnerId, newSessionId } from '../lib/proctor';
+import { browserEnv } from '../lib/browserEnv';
+import { isExpired, readRecord } from '../lib/labStore';
+import { armGuide, extensionVersion } from '../lib/guide';
 import { Ava, CLONE, getPref, setPref } from '../lib/ava';
 import { CLONE_TEXT, MIN_MS, cloneVoice, listClonedVoices, startRecording, toWav, type ClonedVoice } from '../lib/cloneVoice';
 import pageCss from './Setup.css?inline';
@@ -14,11 +18,24 @@ const GHOST_DONE = ['Nice, that’s exactly how it works!', 'You’re all set. W
 const CLONE_TEST = ['That’s your voice, cloned! From now on, I’ll guide you in it.', 'Hey, can you hear me?'];
 const TEST = ['Hey, can you hear me? If this sounds clear, your speakers are ready.'];
 
+const API_BASE = `${import.meta.env.VITE_API_BASE_URL || 'http://localhost:7071'}/api`;
+
+function safeStorage(): Storage | null {
+  try { return window.localStorage; } catch { return null; }
+}
+
 export default function Setup() {
   const [s, setState] = useMergeState({ step: 0, c0: true, c1: false, mon: 0, voice: 0, style: 0, practiced: false, note: '',
     rec: getPref('ava.cloneId') ? 'ready' : 'idle' as 'idle' | 'recording' | 'cloning' | 'ready', consent: false, modal: false, name: '', saved: [] as ClonedVoice[] });
   const ava = useRef<Ava | null>(null);
   const recorder = useRef<Awaited<ReturnType<typeof startRecording>> | null>(null);
+  // The lab that "Start guided session" will open in the real Azure portal: only a READY, unexpired
+  // Foundry lab with a portal link (not a placeholder storage lab, not an expired one).
+  const savedLab = readRecord(browserEnv());
+  const guidedLab =
+    savedLab && savedLab.phase === 'ready' && !isExpired(savedLab, Date.now()) && savedLab.accountName && savedLab.projectName && savedLab.portalUrl
+      ? savedLab : null;
+  const extReady = extensionVersion() !== null;
   // Record -> WAV -> clone (Fish Audio) -> remember the voice id -> play a test in the new voice.
   const finishRecording = async () => {
     if (!recorder.current) return;
@@ -108,34 +125,37 @@ export default function Setup() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [s.step === 0]);
 
-  // Tab-switch screenshot: capture the current camera frame the moment this
-  // tab is switched away from or minimized, but only while the camera is
-  // actually running and the person has opted into "Snapshot on flag."
-  // Screenshots are kept in memory only for this pass — there is no
-  // storage/upload endpoint yet, so nothing here is persisted or sent
-  // anywhere.
+  // Tab-switch snapshot: the moment this tab is switched away from or minimized, capture the
+  // current camera frame, but only while the camera is actually running and the person has
+  // opted into "Snapshot on flag." The frame is kept in memory AND uploaded to Blob Storage
+  // (private container, one folder per anonymous learner id, deleted after 30 days by the
+  // backend's proctorCleanup job). A failed upload keeps the in-memory copy.
   const [screenshots, setScreenshots] = useState<string[]>([]);
+  const [uploads, setUploads] = useState({ uploaded: 0, failed: 0 });
   const lastCaptureAtRef = useRef(0);
+  const sessionIdRef = useRef<string>('');
+  if (!sessionIdRef.current) sessionIdRef.current = newSessionId(() => crypto.randomUUID());
   useEffect(() => {
     function onVisibilityChange() {
       if (document.visibilityState !== 'hidden') return;
       if (!running || !s.c1) return;
       const now = Date.now();
-      // Reduced from the reference project's own documented 800ms to 100ms
-      // per explicit request — still exists purely to stop a single rapid
-      // alt-tab from flooding the in-memory screenshot list with duplicates.
+      // Stops a single rapid alt-tab from producing duplicates.
       if (now - lastCaptureAtRef.current < 100) return;
       const video = videoRef.current;
       if (!video || video.readyState < 2) return;
       lastCaptureAtRef.current = now;
-      const canvas = document.createElement('canvas');
-      canvas.width = video.videoWidth;
-      canvas.height = video.videoHeight;
-      const ctx = canvas.getContext('2d');
-      if (!ctx) return;
-      ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-      const dataUrl = canvas.toDataURL('image/jpeg', 0.85);
-      setScreenshots((prev) => [...prev, dataUrl]);
+      void captureAndUpload(s.c1, running, {
+        fetchFn: (url, init) => fetch(url, init),
+        apiBase: API_BASE,
+        learnerId: getLearnerId(safeStorage(), () => crypto.randomUUID()),
+        sessionId: sessionIdRef.current,
+        capture: () => captureFrame(video, () => document.createElement('canvas')),
+      }).then(({ dataUrl, upload }) => {
+        if (dataUrl) setScreenshots((prev) => [...prev, dataUrl]);
+        if (upload === 'uploaded') setUploads((u) => ({ ...u, uploaded: u.uploaded + 1 }));
+        if (upload === 'failed') setUploads((u) => ({ ...u, failed: u.failed + 1 }));
+      });
     }
     document.addEventListener('visibilitychange', onVisibilityChange);
     return () => document.removeEventListener('visibilitychange', onVisibilityChange);
@@ -164,7 +184,7 @@ export default function Setup() {
   const tog = (on: boolean) => ({ track: on ? 'background: #3E6AE1' : 'background: #33333B', knob: on ? 'left: 21px' : 'left: 3px', on: on ? 'true' : 'false' });
   const consents = [
     { t: 'Focus & presence during guided sessions', d: 'Ava slows down or checks in if you look away', flip: () => setState({ c0: !s.c0 }), ...tog(s.c0) },
-    { t: 'Snapshot on flag (proctored assessments only)', d: 'Encrypted and deleted after 30 days', flip: () => setState({ c1: !s.c1 }), ...tog(s.c1) },
+    { t: 'Snapshot on flag (proctored assessments only)', d: 'Photo on tab switch · encrypted and deleted after 30 days', flip: () => setState({ c1: !s.c1 }), ...tog(s.c1) },
   ];
   const sel = 'border: 1px solid #3E6AE1';
   const uns = 'border: 1px solid #1F1F24';
@@ -295,7 +315,7 @@ export default function Setup() {
                       <span style={{ color: "#F4F4F5" }}>
                         presence, looking away and distraction
                       </span>
-                      . Frames never leave this device. We never infer emotions, age or identity.
+                      . Frames stay on this device unless you turn on Snapshot on flag; then only the photo taken when you switch tabs is uploaded. We never infer emotions, age or identity.
                     </div>
                     {consents.map((k, kIndex) => (
                       <Fragment key={kIndex}>
@@ -316,7 +336,8 @@ export default function Setup() {
                     ))}
                     {s.c1 && screenshots.length > 0 && (
                       <div style={{ fontSize: "12px", color: "#8B8B94" }}>
-                        {screenshots.length} tab-switch snapshot{screenshots.length === 1 ? "" : "s"} captured this session (kept in memory only — not uploaded).
+                        {screenshots.length} tab-switch snapshot{screenshots.length === 1 ? "" : "s"} captured this session
+                        {" — "}{uploads.uploaded} uploaded{uploads.failed > 0 ? `, ${uploads.failed} failed to upload (kept on this device)` : ""}.
                       </div>
                     )}
                   </div>
@@ -523,6 +544,11 @@ export default function Setup() {
                       </>
                     )}
                   </div>
+                  <div data-testid="guide-note" style={{ fontSize: "13px", color: guidedLab && !extReady ? "#FF9F0A" : "#A1A1AA", lineHeight: "1.5" }}>
+                    {guidedLab && extReady && "Start guided session opens your Azure lab in a new tab. The blue cursor then guides you, click by click, through creating the agent."}
+                    {guidedLab && !extReady && "The ghost cursor extension was not found. Install it (chrome://extensions, Developer mode, Load unpacked, choose the ghost-cursor-extension folder), reload this page, then press Start guided session."}
+                    {!guidedLab && "Provision a lab on the Labs page to be guided in the real Azure portal. Until then this opens the practice session."}
+                  </div>
                   <div style={{ display: "flex", gap: "18px", fontSize: "12px", color: "#A1A1AA" }}>
                     <span>
                       <span style={{ fontFamily: "'Geist Mono', monospace", color: "#D4D4D8" }}>
@@ -559,9 +585,20 @@ export default function Setup() {
               )}
               {last && (
                 <>
-                  <Link to="/guided" className="btn">
-                    Start guided session
-                  </Link>
+                  {guidedLab && extReady ? (
+                    // A plain link, so the browser never treats it as a blocked popup.
+                    <a className="btn" href={guidedLab.portalUrl ?? undefined} target="_blank" rel="noopener noreferrer" onClick={() => armGuide(true, guidedLab.accountName ?? '')}>
+                      Start guided session
+                    </a>
+                  ) : guidedLab ? (
+                    <button className="btn" disabled={true}>
+                      Install the extension first
+                    </button>
+                  ) : (
+                    <Link to="/guided" className="btn">
+                      Start guided session
+                    </Link>
+                  )}
                 </>
               )}
             </div>
