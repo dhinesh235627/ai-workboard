@@ -31,7 +31,10 @@ window.AIWB_STEPS = window.AIWB_STEPS || [
   // "Knowledge": that goes to a different page, so it is never used as a target.
   { host: 'ai.azure.com', kind: 'text', match: ['Model:'], label: "Check the Model: pick the deployed gpt-4o-mini" },                                    // [live]
   { host: 'ai.azure.com', kind: 'placeholder', match: ['Write your prompt here', 'give your agent instructions'], label: "Click 'Instructions' and paste the starter text from your lab card" },   // [live]
-  { host: 'ai.azure.com', exact: true, kind: 'text', match: ['Add knowledge', 'Add a knowledge base'], label: "Add the HR policy file (Tools / Knowledge section of this agent)" },
+  // Knowledge is `optional`: on the real agent screen it is not always present under these names (it
+  // can live behind Tools > Add, or on its own page), so when the next step is already on screen the
+  // cursor moves on by itself and says so, instead of stranding the learner.
+  { host: 'ai.azure.com', optional: true, kind: 'text', match: ['Add knowledge', 'Add a knowledge base', 'Knowledge base'], label: "Add the HR policy file (Knowledge section of this agent)" },
   { host: 'ai.azure.com', exact: true, kind: 'text', match: ['Save'], label: "Click 'Save'" },                                                                                                     // [live]
-  { host: 'ai.azure.com', kind: 'placeholder', match: ['Message the agent', 'Type a message', 'Type your message', 'Ask a question', 'Send a message'], label: "Type a question here to test your agent" },   // [live]
+  { host: 'ai.azure.com', kind: 'placeholder', match: ['Message the agent', 'Type a message', 'Type your message', 'Ask a question', 'Send a message'], label: "Type a question here to test your agent" },   // [live: an editable div, not an <input>]
 ];

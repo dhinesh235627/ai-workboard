@@ -312,6 +312,16 @@ export default async function run(page) {
   note(nf.step === '2' && nfOff.dx <= 8 && nfOff.dy <= 8, 'did not continue at the control that is on screen: ' + JSON.stringify(nf));
   note(/Skipped:/.test(nfBanner) && /Also not on this screen/.test(nfBanner), 'the skipped step was not named: ' + nfBanner);
 
+  // ---- a chat composer that is an editable div, not an <input> ------------------------------
+  await page.goto(BASE + '?chataria=1', { waitUntil: 'load' });
+  await waitState('pointing', 4000).catch(() => {});
+  const ariaOff = await ringVsTarget('#ariaBox');
+  note(ariaOff.dx <= 8 && ariaOff.dy <= 8, 'did not find a role=textbox with aria-placeholder: ' + JSON.stringify(await state()));
+  await page.goto(BASE + '?chathint=1', { waitUntil: 'load' });
+  await waitState('pointing', 4000).catch(() => {});
+  const hintOff = await ringVsTarget('#composerBox');
+  note(hintOff.dx <= 8 && hintOff.dy <= 8, 'did not find the editable div behind a separate hint element: ' + JSON.stringify(await state()));
+
   // ---- dialog fallback: ignore a non-modal flyout, a search box and a combobox ------------------
   await page.goto(BASE + '?dlghard=1', { waitUntil: 'load' });
   await waitState('pointing', 5000).catch(() => {});

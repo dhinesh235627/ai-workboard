@@ -93,6 +93,8 @@
     { kind: 'text', match: '+ New agent', label: "Click '+ New agent'" },
     { kind: 'text', match: 'Control that is not on this screen', label: 'later step' },
   ];
+  if (q.indexOf('chathint') >= 0) window.AIWB_STEPS = [{ kind: 'placeholder', match: ['Message the agent'], label: 'type here' }];
+  if (q.indexOf('chataria') >= 0) window.AIWB_STEPS = [{ kind: 'placeholder', match: ['Message the agent'], label: 'type here' }];
   if (q.indexOf('hostnone') >= 0) window.AIWB_STEPS = [{ host: 'other.example', kind: 'text', match: 'Try in playground', label: 'wrong site' }];
   if (q.indexOf('assoc') >= 0) {
     window.AIWB_STEPS = [{ kind: 'label', match: 'Full name', label: 'Click full name' }];
@@ -113,6 +115,16 @@
 </head>
 <body>
 <div class="top">Fixture portal</div>
+<!-- A chat composer like the real Foundry one: an editable div whose hint is a separate overlay. -->
+<div id="composer" style="display:none;border:1px solid #ccc;margin:8px;padding:6px;position:relative">
+  <div id="composerHint" style="color:#999">Message the agent...</div>
+  <div id="composerBox" contenteditable="true" style="min-height:24px"></div></div>
+<div id="composer2" style="display:none;margin:8px"><div role="textbox" id="ariaBox" aria-placeholder="Message the agent..." style="border:1px solid #ccc;min-height:24px">&nbsp;</div></div>
+<script>
+  var qc = location.search;
+  if (qc.indexOf('chathint') >= 0) document.getElementById('composer').style.display = 'block';
+  if (qc.indexOf('chataria') >= 0) document.getElementById('composer2').style.display = 'block';
+</script>
 <button id="goOn" onclick="location.hash='#learner-did-this'">Go on</button>
 <div role="dialog" aria-modal="true" id="dlg1" style="display:none;padding:12px;background:#fff;border:1px solid #888;margin:8px"><span>Choose a name</span> <input id="dlgIn" placeholder="my-agent"></div>
 <!-- A non-modal flyout that appears LATER in the document: the fallback must ignore it and must skip

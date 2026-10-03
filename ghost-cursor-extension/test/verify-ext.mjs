@@ -211,7 +211,7 @@ try {
       ['#bCreate', "Click 'Create'"],
       ['#mdl', 'Check the Model: pick the deployed gpt-4o-mini'],
       ['#instr', "Click 'Instructions' and paste the starter text from your lab card"],
-      ['#bKnow', 'Add the HR policy file (Tools / Knowledge section of this agent)'],
+      ['#bKnow', 'Add the HR policy file (Knowledge section of this agent)'],
       ['#bSave', "Click 'Save'"],
       ['#chat', 'Type a question here to test your agent'],
     ];

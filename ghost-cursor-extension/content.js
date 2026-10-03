@@ -293,9 +293,31 @@
         });
         return fields.slice(0, 1);
       }
-      case 'placeholder':
-        return [...document.querySelectorAll('input,textarea')]
-          .filter((el) => isVisible(el) && norm(el.getAttribute('placeholder') || '').includes(want));
+      case 'placeholder': {
+        // A modern chat composer is usually an editable div, not an <input>, and its placeholder can
+        // live in aria-placeholder / data-placeholder / aria-label instead of the placeholder
+        // attribute. Match any of them, on any editable control.
+        const ATTRS = ['placeholder', 'aria-placeholder', 'data-placeholder', 'aria-label'];
+        const editable = [...document.querySelectorAll('input,textarea,[contenteditable=true],[contenteditable=""],[role=textbox],[role=searchbox]')];
+        const direct = editable.filter((el) => isVisible(el) && ATTRS.some((a) => norm(el.getAttribute(a) || '').includes(want)));
+        if (direct.length) return direct;
+        // Some composers paint the hint as a separate element over the editable area; in that case
+        // point at the nearest editable ancestor or sibling of that hint.
+        // The hint usually carries a trailing ellipsis ("Message the agent..."), so compare by
+        // containment, capped so a whole page section cannot qualify as "the hint".
+        const hint = [...document.querySelectorAll('div,span,p,label')].filter((el) => {
+          if (!isVisible(el) || !mayContain(el, want)) return false;
+          const t = visibleText(el, squash(want).length + 12);
+          return !!t && t.includes(want);
+        });
+        for (const h of hint) {
+          const near = h.closest('input,textarea,[contenteditable=true],[contenteditable=""],[role=textbox]')
+            || h.parentElement?.querySelector('input,textarea,[contenteditable=true],[contenteditable=""],[role=textbox]')
+            || h.closest('form,div')?.querySelector('input,textarea,[contenteditable=true],[contenteditable=""],[role=textbox]');
+          if (near && isVisible(near)) return [near];
+        }
+        return [];
+      }
       case 'value':
         return [...document.querySelectorAll('input[type=submit],input[type=button]')]
           .filter((el) => isVisible(el) && norm(el.value || '').includes(want));
@@ -359,9 +381,18 @@
     root.dataset.step = String(index);
   }
 
+  let scrolledFor = -1;
   function place() {
     if (!target) return;
-    const r = target.getBoundingClientRect();
+    // A long page (the agent screen) can hold the target below the fold: bring it into view once per
+    // step, so the cursor is never pointing at something the learner cannot see.
+    let r = target.getBoundingClientRect();
+    const off = r.bottom < 0 || r.top > innerHeight || r.right < 0 || r.left > innerWidth;
+    if (off && scrolledFor !== index) {
+      scrolledFor = index;
+      target.scrollIntoView({ block: 'center', inline: 'nearest' });
+      r = target.getBoundingClientRect();
+    }
     cursor.style.transform = 'translate(' + (r.left + r.width / 2) + 'px,' + (r.top + r.height / 2) + 'px)';
   }
 
