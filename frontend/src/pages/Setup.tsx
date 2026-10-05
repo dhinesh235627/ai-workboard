@@ -587,7 +587,7 @@ export default function Setup() {
                 <>
                   {guidedLab && extReady ? (
                     // A plain link, so the browser never treats it as a blocked popup.
-                    <a className="btn" href={guidedLab.portalUrl ?? undefined} target="_blank" rel="noopener noreferrer" onClick={() => armGuide(true, guidedLab.accountName ?? '', window, { api: TTS_API || location.origin, voice: Number(getPref('ava.voice')) || 0, cloneId: getPref('ava.cloneId') })}>
+                    <a className="btn" href={guidedLab.portalUrl ?? undefined} target="_blank" rel="noopener noreferrer" onClick={() => { ava.current?.stop(); armGuide(true, guidedLab.accountName ?? '', window, { api: TTS_API || location.origin, voice: Number(getPref('ava.voice')) || 0, cloneId: getPref('ava.cloneId') }); }}>
                       Start guided session
                     </a>
                   ) : guidedLab ? (

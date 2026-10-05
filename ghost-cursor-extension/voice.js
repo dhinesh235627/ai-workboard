@@ -42,7 +42,12 @@
   let muted = false;
   try { chrome.storage.local.get('aiwbMute', (r) => { muted = !!(r && r.aiwbMute); }); } catch { /* no storage: voice stays on */ }
 
-  function stop() { gen++; audio.pause(); }
+  // The offscreen player (see background.js) speaks without needing a click in this tab; true when it took the clip.
+  const remote = (m) => new Promise((res) => {
+    try { chrome.runtime.sendMessage(m, (r) => res(!chrome.runtime.lastError && !!(r && r.ok))); } catch { res(false); }
+  });
+
+  function stop() { gen++; audio.pause(); remote({ type: 'aiwb:stop' }); }
 
   async function speak(lines, cfg, onBlocked) {
     stop();
@@ -52,7 +57,9 @@
     try {
       const url = await load(req);
       if (g !== gen || muted) return;
-      audio.src = url;
+      if (await remote({ type: 'aiwb:play', url })) return;
+      if (g !== gen || muted) return;
+      audio.src = url; // offscreen player unavailable: play in the page (may need a click first)
       try { await audio.play(); } catch {
         // Autoplay blocked (no click on this page yet): start on the first click or key, if still current.
         if (onBlocked) onBlocked();

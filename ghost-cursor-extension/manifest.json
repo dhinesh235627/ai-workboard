@@ -42,6 +42,7 @@
     "http://localhost:7071/*"
   ],
   "permissions": [
-    "storage"
+    "storage",
+    "offscreen"
   ]
 }

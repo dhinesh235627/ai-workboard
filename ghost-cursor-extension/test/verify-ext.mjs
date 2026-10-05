@@ -48,8 +48,8 @@ check('B1d bridge script only on the app origins, document_start, bridge.js only
   JSON.stringify(cs[1].matches) === JSON.stringify(['http://localhost:5173/*', 'https://ai-workboard-qa.azurewebsites.net/*', 'https://ai-workboard.azurewebsites.net/*']),
   JSON.stringify(cs[1]));
 // Voice: background.js may only reach our own API hosts (to fetch the guide's audio); still no tabs permission.
-check('B1c only storage permission; host_permissions only our API/app hosts; background is background.js alone',
-  JSON.stringify(manifest.permissions) === JSON.stringify(['storage']) &&
+check('B1c only storage+offscreen permissions; host_permissions only our API/app hosts; background is background.js alone',
+  JSON.stringify(manifest.permissions) === JSON.stringify(['storage', 'offscreen']) &&
   (manifest.host_permissions || []).every((h) => /^(https:\/\/ai-workboard(-api)?(-qa)?\.azurewebsites\.net|http:\/\/localhost:\d+)\/\*$/.test(h)) &&
   manifest.background?.service_worker === 'background.js');
 const declared = cs.flatMap((c) => [...(c.js || []), ...(c.css || [])]);
