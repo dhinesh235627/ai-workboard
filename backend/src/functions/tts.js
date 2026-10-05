@@ -1,4 +1,5 @@
 import { app } from "@azure/functions"
+import { mcpSpeak } from "../lib/mcpTts.js"
 
 // POST { ssml }            -> mp3 from Azure Speech (Ava / Leo)
 // POST { text, clone:true } -> mp3 from Fish Audio (team cloned voice, same call as SaaSH's fish_audio_engine)
@@ -11,6 +12,19 @@ app.http("tts", {
   route: "tts",
   handler: async (req) => {
     const { ssml, text, clone, voiceId } = await req.json().catch(() => ({}))
+
+    // Preferred path: the audio-mcp container (AUDIO_MCP_URL + AUDIO_MCP_TOKEN). Any failure falls back to the direct calls below.
+    if (process.env.AUDIO_MCP_URL && process.env.AUDIO_MCP_TOKEN) {
+      const valid = clone
+        ? typeof text === "string" && text.trim() && text.length <= 600
+        : typeof ssml === "string" && ssml.startsWith("<speak") && ssml.length <= 5000
+      if (valid) {
+        try {
+          const voice = clone && typeof voiceId === "string" && /^[\w-]{6,64}$/.test(voiceId) ? voiceId : clone ? process.env.FISH_VOICE_ID : undefined
+          return audio(await mcpSpeak(clone ? { text: text.trim(), provider: "fish_audio", voice } : { ssml, provider: "azure_speech" }))
+        } catch { /* fall through to the direct provider */ }
+      }
+    }
 
     if (clone) {
       const { FISH_AUDIO_API_KEY, FISH_AUDIO_MODEL } = process.env

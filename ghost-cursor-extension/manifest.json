@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
   "name": "AI Workboard Ghost Cursor",
-  "version": "0.3.0",
-  "description": "Guides you click by click while you create an agent in the Azure portal and the Foundry portal. Only active after you press \"Start guided session\". Reads and sends nothing.",
+  "version": "0.4.0",
+  "description": "Guides you click by click, and talks you through it, while you create an agent in the Azure portal and the Foundry portal. Only active after you press \"Start guided session\". Reads nothing from the portals; the only thing it sends is the guide's own sentences, to the AI Workboard voice service.",
   "content_scripts": [
     {
       "matches": [
@@ -11,6 +11,7 @@
       ],
       "js": [
         "steps.js",
+        "voice.js",
         "guide-core.js",
         "content.js"
       ],
@@ -30,6 +31,15 @@
       ],
       "run_at": "document_start"
     }
+  ],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "host_permissions": [
+    "https://ai-workboard-api-qa.azurewebsites.net/*",
+    "https://ai-workboard-api.azurewebsites.net/*",
+    "http://localhost:5173/*",
+    "http://localhost:7071/*"
   ],
   "permissions": [
     "storage"

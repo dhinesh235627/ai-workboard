@@ -47,8 +47,11 @@ check('B1d bridge script only on the app origins, document_start, bridge.js only
   cs.length === 2 && JSON.stringify(cs[1].js) === JSON.stringify(['bridge.js']) && cs[1].run_at === 'document_start' &&
   JSON.stringify(cs[1].matches) === JSON.stringify(['http://localhost:5173/*', 'https://ai-workboard-qa.azurewebsites.net/*', 'https://ai-workboard.azurewebsites.net/*']),
   JSON.stringify(cs[1]));
-check('B1c only the storage permission; no host_permissions, no background, no tabs',
-  JSON.stringify(manifest.permissions) === JSON.stringify(['storage']) && !manifest.host_permissions && !manifest.background);
+// Voice: background.js may only reach our own API hosts (to fetch the guide's audio); still no tabs permission.
+check('B1c only storage permission; host_permissions only our API/app hosts; background is background.js alone',
+  JSON.stringify(manifest.permissions) === JSON.stringify(['storage']) &&
+  (manifest.host_permissions || []).every((h) => /^(https:\/\/ai-workboard(-api)?(-qa)?\.azurewebsites\.net|http:\/\/localhost:\d+)\/\*$/.test(h)) &&
+  manifest.background?.service_worker === 'background.js');
 const declared = cs.flatMap((c) => [...(c.js || []), ...(c.css || [])]);
 const missing = declared.filter((f) => !existsSync(join(EXT, f)));
 check('B2 every declared js/css file exists', declared.length > 0 && missing.length === 0, missing.join(','));

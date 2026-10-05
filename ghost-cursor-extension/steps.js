@@ -38,3 +38,28 @@ window.AIWB_STEPS = window.AIWB_STEPS || [
   { host: 'ai.azure.com', exact: true, kind: 'text', match: ['Save'], label: "Click 'Save'" },                                                                                                     // [live]
   { host: 'ai.azure.com', kind: 'placeholder', match: ['Message the agent', 'Type a message', 'Type your message', 'Ask a question', 'Send a message'], label: "Type a question here to test your agent" },   // [live: an editable div, not an <input>]
 ];
+
+// What the guide SAYS at each step, same order as AIWB_STEPS above (the cursor's text label stays short;
+// the voice is slower, softer and more human). Sentences are joined with a gentle pause; “quoted” words are
+// stressed so the learner can spot them on screen. A missing entry falls back to the label.
+window.AIWB_SPEAK = [
+  ['Hi there… welcome, I’m so glad you’re here.', 'Take a slow breath. We’ll do this together, one little click at a time.', 'See my blue cursor? Click “Go to Foundry portal”.'],
+  ['Ohh, lovely, you’re in.', 'Now, up in the top menu, click “Build”. Right where my cursor is.'],
+  ['Mm-hm, perfect.', 'Hmm, now click “New agent”. Take your time, there’s no rush at all.'],
+  ['Okay, a little menu just opened.', 'Choose “Build an agent”. You’re doing great.'],
+  ['Ohh, good. Now we get to give our agent a name.', 'Click this box, and type something friendly, like “HR policy helper”.'],
+  ['Mm-hm, that looks lovely.', 'Now click “Create”, and let’s bring your agent to life.'],
+  ['Wow, look at that… your agent is born!', 'Hmm, let’s have a peek at the model. Make sure it’s the one we deployed, gpt-4o-mini.'],
+  ['Okay, now the important part, the instructions. Think of them as your agent’s little playbook.', 'Click this box, and paste the starter text from your lab card.'],
+  ['Almost there, you’re doing so well.', 'If you can see the knowledge part, add the HR policy file here. If not, no worries at all.'],
+  ['Ohh, nice work.', 'Now click “Save”, so nothing gets lost.'],
+  ['Last one, I promise. Hmm, look how far you’ve come.', 'Type a question in this box, and let’s see your agent answer.'],
+];
+
+window.AIWB_LINES = {
+  done: ['You did it! Ohh, I’m so proud of you.', 'Your agent is alive, and you built it yourself. Take a breath… that was a wonderful first build.'],
+  waiting: ['Hmm… give me a moment, I’m looking for it.'],
+  timeout: ['Hmm… I can’t see that one just yet. No worries, take your time.', 'If your screen looks a little different, you can press Skip step.'],
+  ambiguous: ['Ohh, I see two of those, and I don’t want to guess.', 'Pick the one that feels right, or press Skip step.'],
+  skipped: ['Okay, it looks like you already did that one. Lovely, let’s move on.'],
+};

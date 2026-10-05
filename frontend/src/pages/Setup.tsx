@@ -7,7 +7,7 @@ import { captureAndUpload, captureFrame, getLearnerId, newSessionId } from '../l
 import { browserEnv } from '../lib/browserEnv';
 import { isExpired, readRecord } from '../lib/labStore';
 import { armGuide, extensionVersion } from '../lib/guide';
-import { Ava, CLONE, getPref, setPref } from '../lib/ava';
+import { API_BASE as TTS_API, Ava, CLONE, getPref, setPref } from '../lib/ava';
 import { CLONE_TEXT, MIN_MS, cloneVoice, listClonedVoices, startRecording, toWav, type ClonedVoice } from '../lib/cloneVoice';
 import pageCss from './Setup.css?inline';
 
@@ -587,7 +587,7 @@ export default function Setup() {
                 <>
                   {guidedLab && extReady ? (
                     // A plain link, so the browser never treats it as a blocked popup.
-                    <a className="btn" href={guidedLab.portalUrl ?? undefined} target="_blank" rel="noopener noreferrer" onClick={() => armGuide(true, guidedLab.accountName ?? '')}>
+                    <a className="btn" href={guidedLab.portalUrl ?? undefined} target="_blank" rel="noopener noreferrer" onClick={() => armGuide(true, guidedLab.accountName ?? '', window, { api: TTS_API || location.origin, voice: Number(getPref('ava.voice')) || 0, cloneId: getPref('ava.cloneId') })}>
                       Start guided session
                     </a>
                   ) : guidedLab ? (

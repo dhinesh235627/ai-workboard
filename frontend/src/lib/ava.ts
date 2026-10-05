@@ -1,66 +1,63 @@
 // Ava's teaching script (3 wordings per step, one sentence per entry) + audio player.
-import { formatToSsml, type VoiceMetadata } from './ssmlBuilder';
 
 export const SCRIPT: string[][][] = [
   [
-    ['Let’s create your first agent.', 'See my blue cursor, top left of the page?', 'Click “New agent”, the dark button under the Agents heading.'],
-    ['Alright, we’ll start by making an agent.', 'Follow the blue cursor up to the top left.', 'That dark button says “New agent”. Give it a click.'],
-    ['First things first.', 'Right under the big Agents title, there’s a dark button.', 'Go ahead and press “New agent”.'],
+    ['Okay, let’s create your very first agent.', 'See my blue cursor, top left of the page?', 'Click “New agent”, the dark button under the Agents heading.'],
+    ['Alright, we’ll start by making an agent, nice and slow.', 'Follow the blue cursor up to the top left.', 'That dark button says “New agent”. Give it a gentle click.'],
+    ['Hmm, first things first.', 'Right under the big Agents title, there’s a dark button.', 'Go ahead and press “New agent”. Take your time.'],
   ],
   [
-    ['Nice! A panel just opened on the right.', 'Now give your agent a name.', 'Click the first box, under “Agent name”, and call it “HR policy helper”.'],
-    ['Good, you’re on a roll.', 'Look at the panel on the right. The cursor is on the very first box.', 'Click it, that’s where the name goes.'],
-    ['Great. Over on the right-hand panel, top box.', 'That’s the name field.', 'Click it and we’ll call our agent “HR policy helper”.'],
+    ['Oh, nice! A panel just opened on the right.', 'Now, let’s give your agent a name.', 'Click the first box, under “Agent name”, and call it “HR policy helper”.'],
+    ['Mm hm, you’re doing so well.', 'Look at the panel on the right. The cursor is on the very first box.', 'Click it, that’s where the name goes.'],
+    ['Lovely. Over on the right-hand panel, top box.', 'That’s the name field.', 'Click it, and we’ll call our agent “HR policy helper”.'],
   ],
   [
-    ['Next, we choose the model.', 'The blue cursor is on the “Model” box, just under the name.', 'I’ve already deployed one in your sandbox, so just select it.'],
-    ['Okay, the brain of our agent.', 'It’s the second box in the panel, right below the name.', 'Click “Model” and pick the one that’s already deployed.'],
-    ['Now, which model should power it?', 'Follow me down one box, to “Model”.', 'Click it. Your sandbox model is ready and waiting.'],
+    ['Okay, next, we choose the model.', 'The blue cursor is on the “Model” box, just under the name.', 'I’ve already deployed one in your sandbox, so just select it.'],
+    ['Hmm, now the brain of our agent.', 'It’s the second box in the panel, right below the name.', 'Click “Model”, and pick the one that’s already deployed.'],
+    ['Now, which model should power it?', 'Follow me down one box, to “Model”.', 'Click it. Your sandbox model is ready and waiting for you.'],
   ],
   [
-    ['Now for the instructions. Think of them as the agent’s playbook.', 'The cursor is on the big box in the middle of the panel.', 'Click it, and the starter text from your lab card fills in.'],
+    ['Oh, now for the important part, the instructions. Think of them as your agent’s little playbook.', 'The cursor is on the big box in the middle of the panel.', 'Click it, and the starter text from your lab card fills in.'],
     ['You’re doing great.', 'See the large “Instructions” box? That’s where we tell the agent how to behave.', 'One click on it, and the starter text appears.'],
-    ['This part is important.', 'The tall box under “Instructions” is the playbook.', 'Click it and the starter text will drop in for you.'],
+    ['Hmm, this part is important, but don’t worry, it’s easy.', 'The tall box under “Instructions” is the playbook.', 'Click it, and the starter text will drop in for you.'],
   ],
   [
-    ['Last one, I promise.', 'At the very bottom of the panel, there’s a dark button.', 'Click “Try in playground” and ask your agent a question.'],
-    ['We’re almost there.', 'Follow the cursor all the way down to the bottom of the panel.', 'Press “Try in playground” and see your agent in action.'],
-    ['Final step!', 'Bottom of the right panel, the dark “Try in playground” button.', 'Click it, then ask your agent anything about HR policy.'],
+    ['Last one, I promise. Look how far you’ve come.', 'At the very bottom of the panel, there’s a dark button.', 'Click “Try in playground”, and ask your agent a question.'],
+    ['Mm hm, we’re almost there.', 'Follow the cursor all the way down to the bottom of the panel.', 'Press “Try in playground”, and see your agent in action.'],
+    ['Final step, and you’re doing wonderfully.', 'Bottom of the right panel, the dark “Try in playground” button.', 'Click it, then ask your agent anything about HR policy.'],
   ],
 ];
 
-export const WELCOME: string[] = ['Welcome to the experiment lab! I’m Ava, and I’ll be your guide today.', 'Just follow my blue cursor, and I’ll tell you exactly what to do at every step.'];
+export const WELCOME: string[] = ['Hi there, welcome to the experiment lab. I’m Ava, and I’m so glad you’re here.', 'Take a slow breath. Just follow my blue cursor, and I’ll tell you exactly what to do, one little click at a time.'];
 
 // What the cursor is about to do -> spoken line, 3 wordings. Cursor code sends { label, action } via 'ava:cursor'.
 export type CursorAction = 'click' | 'type' | 'select' | 'look';
 const CUE: Record<CursorAction, string[][]> = {
-  click: [['Now click “{l}”.'], ['Go ahead and click “{l}”.'], ['Next, give “{l}” a click.']],
-  type: [['Click “{l}” and type your answer.'], ['Now, in “{l}”, type what you see on your lab card.'], ['Over here, “{l}”. Type it in.']],
+  click: [['Now click “{l}”. Take your time.'], ['Go ahead and click “{l}”.'], ['Next, give “{l}” a gentle click.']],
+  type: [['Click “{l}” and type your answer.'], ['Now, in “{l}”, type what you see on your lab card.'], ['Over here, “{l}”. Type it in, no rush.']],
   select: [['Now pick “{l}”.'], ['Choose “{l}” from the list.'], ['Go ahead and select “{l}”.']],
   look: [['Take a look at “{l}”.'], ['See “{l}” here? Have a quick read.'], ['Notice “{l}”. It’s important.']],
 };
 export const cursorLines = (label: string, action: CursorAction, variant: number) =>
   CUE[action][variant % 3].map((t) => t.replace('{l}', label));
 
-export const DONE: string[] = ['You did it! Your agent is live.', 'Take a breath, that was a great first build.', 'One quick question before we wrap up.'];
+export const DONE: string[] = ['You did it! Oh, I’m so proud of you.', 'Your agent is alive, and you built it yourself. Take a breath, that was a wonderful first build.', 'One quick question before we wrap up.'];
 
-// Each replay uses a different SaaSH teaching voice, so Talk never sounds identical.
-const VOICES: VoiceMetadata[] = [
-  { style: 'teacher', level: 'beginner' }, // calm, friendly, slower
-  { style: 'encouraging' }, // warmer, slightly brighter
-  { style: 'storytelling' }, // relaxed, longer pauses
-];
-const STUCK: VoiceMetadata = { style: 'empathetic', prosody: { rate: 'slow' } };
+// Delivery: the clip we approved. Ava, slower than normal and a touch warm. Each replay shifts the pace a
+// little, so Talk never sounds identical; "stuck" is slower and gentler still.
+type Pace = { rate: string; pitch: string };
+const VARIANTS: Pace[] = [{ rate: '-16%', pitch: '+3%' }, { rate: '-18%', pitch: '+5%' }, { rate: '-14%', pitch: '+1%' }];
+const STUCK: Pace = { rate: '-24%', pitch: '+2%' };
 
 // Voice picker (Setup > Meet your guide): 0 Ava (female), 1 Leo (male), 2 team voice (cloned, Fish Audio).
 export const AZURE_VOICES = ['en-US-AvaNeural', 'en-US-AndrewNeural'];
 export const CLONE = 2;
 // Setup's "Speaking style" chips -> SaaSH styles.
 // Ava/Leo ignore emotion tags, so the difference is carried by pace, pitch and pauses (always honoured by Azure).
-const STYLES: VoiceMetadata[] = [
-  { style: 'encouraging', prosody: { rate: '-4%', pitch: '+4%', pause_level: 'long' } }, // warm, unhurried, upbeat
-  { style: 'professional', prosody: { rate: '0%', pitch: '-4%', pause_level: 'short' } }, // level, even, matter-of-fact
-  { style: 'motivational', prosody: { rate: '+16%', pitch: '+9%', pause_level: 'short' } }, // fast, bright, punchy
+const STYLES: Pace[] = [
+  { rate: '-18%', pitch: '+4%' }, // warm, unhurried, upbeat
+  { rate: '-8%', pitch: '0%' }, // level, even, matter-of-fact
+  { rate: '-2%', pitch: '+7%' }, // brighter, livelier
 ];
 // Setup's style chips also change the words: 0 encouraging (warm, confident praise), 1 neutral (as written), 2 energetic (human reactions).
 const FLAVOR: string[][] = [
@@ -80,15 +77,18 @@ export const getPref =(k: string) => { try { return localStorage.getItem(k); } c
 export const API_BASE: string = import.meta.env.VITE_API_BASE_URL ?? '';
 export const setPref = (k: string, v: number | string) => { try { localStorage.setItem(k, String(v)); } catch { /* private mode: choice just isn't remembered */ } };
 
-// Lab-tuned on top of SaaSH's builder: the words the learner must find on screen are slowed,
-// stressed and fenced by tiny pauses; instruction sentences leave time to act before the next one.
+// The words the learner must find on screen are stressed and fenced by tiny pauses (emphasis only: a second
+// slow-down made them sound stretched); instruction sentences leave time to act before the next one.
+// "…" and "Ohh" are sent as a comma and "Oh", which Azure reads more naturally.
 const ACTION = /\b(click|type|select|pick|choose|press|open|paste)\b/i;
+const plain = (t: string) => t.replace(/…/g, ',').replace(/Ohh/g, 'Oh').replace(/Mm-hm/g, 'Mm hm').replace(/,\s*([.!?])/g, '$1');
 export function ssml(text: string, variant: number, slow = false, voiceName = AZURE_VOICES[0], style: number | null = null) {
-  const meta = slow ? STUCK : style !== null ? STYLES[style] : VOICES[variant % VOICES.length];
-  const out = formatToSsml(text, { voiceName, ...meta })
-    .replace(/“([^”]+)”/g, '<break time="180ms"/><prosody rate="-15%"><emphasis level="moderate">$1</emphasis></prosody><break time="220ms"/>');
+  const p = slow ? STUCK : style !== null ? STYLES[style] : VARIANTS[variant % VARIANTS.length];
+  const body = plain(text)
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    .replace(/“([^”]+)”/g, '<break time="150ms"/><emphasis level="moderate">$1</emphasis><break time="150ms"/>');
   const gap = ACTION.test(text) ? (slow ? 1100 : 800) : 0; // time to act on the instruction
-  return gap ? out.replace('</prosody></mstts:express-as>', `<break time="${gap}ms"/></prosody></mstts:express-as>`) : out;
+  return `<speak version="1.0" xmlns="http://www.w3.org/2001/10/synthesis" xmlns:mstts="https://www.w3.org/2001/mstts" xml:lang="en-US"><voice name="${voiceName}"><prosody rate="${p.rate}" pitch="${p.pitch}">${body}${gap ? `<break time="${gap}ms"/>` : ''}</prosody></voice></speak>`;
 }
 
 export class Ava {

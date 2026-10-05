@@ -31,3 +31,8 @@
   border: 1px solid rgba(255,255,255,0.4); background: #1f2937; color: #fff; opacity: 0.85;
   font: 600 12px/1 "Segoe UI", system-ui, sans-serif; padding: 8px 12px; border-radius: 999px; }
 #aiwb-ghost-root .aiwb-end:hover { opacity: 1; }
+#aiwb-ghost-root .aiwb-mute { position: fixed; right: 112px; bottom: 16px; pointer-events: auto; cursor: pointer;
+  border: 1px solid rgba(255,255,255,0.4); background: #1f2937; color: #fff; opacity: 0.85;
+  font: 600 12px/1 "Segoe UI", system-ui, sans-serif; padding: 8px 12px; border-radius: 999px; }
+#aiwb-ghost-root .aiwb-mute:hover { opacity: 1; }
+#aiwb-ghost-root .aiwb-mute[hidden] { display: none; }

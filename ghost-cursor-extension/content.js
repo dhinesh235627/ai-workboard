@@ -73,6 +73,21 @@
   let alive = true;
   const wording = (step) => [].concat(step.match);
 
+  // ---- voice (voice.js): each moment is spoken once, however often the page re-renders -------------
+  const V = window.AIWB_VOICE;
+  const SPEAK = window.AIWB_SPEAK || [];
+  const LINES = window.AIWB_LINES || {};
+  let spokenKey = '';
+  const voiceSay = (key, lines) => {
+    if (!V || !lines || spokenKey === key) return;
+    spokenKey = key;
+    V.speak(lines, session, () => {
+      banner.textContent = 'Click anywhere on the page to hear my voice';
+      banner.classList.add('aiwb-on');
+      setTimeout(() => banner.classList.remove('aiwb-on'), NAV_SHOW_MS + 3000);
+    });
+  };
+
   const BLADE = '.blade,[role=dialog],dialog,[data-blade]';
   const CONTROLS = 'input,textarea,select,button,[role=combobox],[role=textbox],[contenteditable=true]';
   const TIMEOUT_MS = 2000;
@@ -103,7 +118,7 @@
     '<svg class="aiwb-arrow" viewBox="0 0 22 22"><path d="M2 2l6.5 17 2.6-7.2L18.5 9z" fill="#3E6AE1" stroke="#fff" stroke-width="1.5" stroke-linejoin="round"/></svg>' +
     '<div class="aiwb-pill"></div></div><div class="aiwb-banner"></div>' +
     '<div class="aiwb-status"><span class="aiwb-status-text" role="status" aria-live="polite"></span><button type="button" class="aiwb-back" hidden></button><button type="button" class="aiwb-jump" hidden></button><button type="button" class="aiwb-skip" hidden>Skip step</button></div>' +
-    '<button type="button" class="aiwb-end">End guide</button>';
+    '<button type="button" class="aiwb-mute">Voice on</button><button type="button" class="aiwb-end">End guide</button>';
   document.documentElement.appendChild(root);
   const cursor = root.querySelector('.aiwb-cursor');
   const pill = root.querySelector('.aiwb-pill');
@@ -116,6 +131,11 @@
   let backTo = -1;
   let jumpTo = -1;
   const endBtn = root.querySelector('.aiwb-end');
+  const muteBtn = root.querySelector('.aiwb-mute');
+  const showMute = () => { muteBtn.textContent = V && V.isMuted() ? 'Voice off' : 'Voice on'; };
+  muteBtn.hidden = !V;
+  muteBtn.addEventListener('click', () => { V.toggleMute(); showMute(); });
+  if (V) setTimeout(showMute, 300); // the saved choice loads asynchronously
   root.dataset.navCount = '0';
 
   // ---- visibility ---------------------------------------------------------
@@ -435,10 +455,13 @@
       cursor.classList.add('aiwb-on');
       say(step.label, 'pointing');
       place();
+      voiceSay('p' + index, SPEAK[index] || [step.label]);
+      if (V) V.warm(SPEAK[index + 1], session);
     } else if (hit) {
       target = null;
       cursor.classList.remove('aiwb-on');
       say("More than one '" + wording(step)[0] + "' on screen - can't tell which", 'ambiguous');
+      voiceSay('a' + index, LINES.ambiguous);
     } else {
       target = null;
       cursor.classList.remove('aiwb-on');
@@ -473,6 +496,7 @@
           // Never silent: name every step being passed over, so a renamed control is visible as a
           // skip the learner can question, not something that quietly disappears.
           const passed = STEPS.slice(index, around.ahead.index).map((s) => wording(s)[0]);
+          voiceSay('k' + index, LINES.skipped);
           banner.textContent = 'You already did that - moving on. Skipped: ' + passed.join(', ');
           banner.classList.add('aiwb-on');
           clearTimeout(navTimer);
@@ -495,6 +519,7 @@
       }
       say(late ? "Can't find '" + wording(step)[0] + "' on this page." + hint : 'Looking for ' + wording(step)[0] + '...',
         late ? 'timeout' : 'waiting');
+      if (late) voiceSay('t' + index, LINES.timeout);
     }
   }
 
@@ -517,8 +542,9 @@
     if (index >= STEPS.length) {
       cursor.classList.remove('aiwb-on');
       say('All steps complete', 'done');
-      // Leave the message up for a moment, then end the session.
-      setTimeout(() => { if (alive && index >= STEPS.length) hooks.end(); }, 6000);
+      voiceSay('d', LINES.done);
+      // Leave the message up while the closing words are spoken, then end the session.
+      setTimeout(() => { if (alive && index >= STEPS.length) hooks.end(); }, 16000);
       return;
     }
     refresh();
@@ -590,6 +616,7 @@
   // Remove everything this run added, so ending a session leaves the page exactly as it was.
   const destroy = () => {
     alive = false;
+    if (V) V.stop();
     clearInterval(navTick);
     clearTimeout(deadlineTimer);
     clearTimeout(refreshTimer);
