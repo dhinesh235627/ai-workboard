@@ -45,10 +45,10 @@ window.AIWB_STEPS = window.AIWB_STEPS || [
 window.AIWB_SPEAK = [
   ['Hi there… welcome, I’m so glad you’re here.', 'Take a slow breath. We’ll do this together, one little click at a time.', 'See my blue cursor? Click “Go to Foundry portal”.'],
   ['Ohh, lovely, you’re in.', 'Now, up in the top menu, click “Build”. Right where my cursor is.'],
-  ['Mm-hm, perfect.', 'Hmm, now click “New agent”. Take your time, there’s no rush at all.'],
+  ['Great, perfect.', 'Hmm, now click “New agent”. Take your time, there’s no rush at all.'],
   ['Okay, a little menu just opened.', 'Choose “Build an agent”. You’re doing great.'],
   ['Ohh, good. Now we get to give our agent a name.', 'Click this box, and type something friendly, like “HR policy helper”.'],
-  ['Mm-hm, that looks lovely.', 'Now click “Create”, and let’s bring your agent to life.'],
+  ['Oh, that looks lovely.', 'Now click “Create”, and let’s bring your agent to life.'],
   ['Wow, look at that… your agent is born!', 'Hmm, let’s have a peek at the model. Make sure it’s the one we deployed, gpt-4o-mini.'],
   ['Okay, now the important part, the instructions. Think of them as your agent’s little playbook.', 'Click this box, and paste the starter text from your lab card.'],
   ['Almost there, you’re doing so well.', 'If you can see the knowledge part, add the HR policy file here. If not, no worries at all.'],
@@ -61,7 +61,7 @@ window.AIWB_SPEAK = [
 // After the last one the guide stays quiet; the cursor and its label stay up.
 window.AIWB_NUDGE = [
   ['Still with me? Look for my blue cursor, it’s sitting right on “Go to Foundry portal”.', 'No rush… whenever you’re ready, just click “Go to Foundry portal”.', 'Hmm, can you see it? It’s the link my cursor is pointing at, “Go to Foundry portal”.'],
-  ['Mm-hm, take a look at the very top of the page… click “Build”.', 'It’s up in the top menu, right where my blue cursor is. Click “Build”.', 'Whenever you’re ready, just one click on “Build”.'],
+  ['Okay, take a look at the very top of the page… click “Build”.', 'It’s up in the top menu, right where my blue cursor is. Click “Build”.', 'Whenever you’re ready, just one click on “Build”.'],
   ['Hmm, still there? Click “New agent”, right under my cursor.', 'See the button with my blue circle on it? That’s “New agent”. Give it a click.', 'No hurry at all… just click “New agent” when you’re ready.'],
   ['The little menu is waiting for you. Choose “Build an agent”.', 'Look where my cursor is pointing… “Build an agent”. Click it.', 'Take your time. Just pick “Build an agent” from that menu.'],
   ['Hmm, let’s give our agent a name. Click the box my cursor is on.', 'Click right into that box, and type a name, like “HR policy helper”.', 'Any friendly name works. Just click the box and start typing.'],
@@ -69,7 +69,7 @@ window.AIWB_NUDGE = [
   ['Have a look at the model my cursor is pointing at. Click it when you’ve checked.', 'It should say gpt-4o-mini. Click right where my cursor is.', 'No rush… just click on the model when you’re happy with it.'],
   ['Now click the instructions box, right where my cursor is.', 'Click that box, and paste the starter text from your lab card.', 'Your lab card has the text ready. Click the box and paste it in.'],
   ['If you can see the knowledge part, click where my cursor is.', 'Add the HR policy file here. Or, if it isn’t there, press Skip step.', 'Take your time. Click it, or skip it, either is fine.'],
-  ['Don’t forget to save! Click “Save”, right under my cursor.', 'Just one click on “Save”, so nothing gets lost.', 'Mm-hm, whenever you’re ready, click “Save”.'],
+  ['Don’t forget to save! Click “Save”, right under my cursor.', 'Just one click on “Save”, so nothing gets lost.', 'Okay, whenever you’re ready, click “Save”.'],
   ['Last step! Click the message box and ask your agent something.', 'Try typing a question, like, “How many leave days do I get?”', 'Go on… say hello to the agent you built.'],
 ];
 

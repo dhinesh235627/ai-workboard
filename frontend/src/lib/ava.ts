@@ -8,7 +8,7 @@ export const SCRIPT: string[][][] = [
   ],
   [
     ['Oh, nice! A panel just opened on the right.', 'Now, let’s give your agent a name.', 'Click the first box, under “Agent name”, and call it “HR policy helper”.'],
-    ['Mm hm, you’re doing so well.', 'Look at the panel on the right. The cursor is on the very first box.', 'Click it, that’s where the name goes.'],
+    ['Great, you’re doing so well.', 'Look at the panel on the right. The cursor is on the very first box.', 'Click it, that’s where the name goes.'],
     ['Lovely. Over on the right-hand panel, top box.', 'That’s the name field.', 'Click it, and we’ll call our agent “HR policy helper”.'],
   ],
   [
@@ -23,7 +23,7 @@ export const SCRIPT: string[][][] = [
   ],
   [
     ['Last one, I promise. Look how far you’ve come.', 'At the very bottom of the panel, there’s a dark button.', 'Click “Try in playground”, and ask your agent a question.'],
-    ['Mm hm, we’re almost there.', 'Follow the cursor all the way down to the bottom of the panel.', 'Press “Try in playground”, and see your agent in action.'],
+    ['Okay, we’re almost there.', 'Follow the cursor all the way down to the bottom of the panel.', 'Press “Try in playground”, and see your agent in action.'],
     ['Final step, and you’re doing wonderfully.', 'Bottom of the right panel, the dark “Try in playground” button.', 'Click it, then ask your agent anything about HR policy.'],
   ],
 ];
@@ -81,7 +81,7 @@ export const setPref = (k: string, v: number | string) => { try { localStorage.s
 // slow-down made them sound stretched); instruction sentences leave time to act before the next one.
 // "…" and "Ohh" are sent as a comma and "Oh", which Azure reads more naturally.
 const ACTION = /\b(click|type|select|pick|choose|press|open|paste)\b/i;
-const plain = (t: string) => t.replace(/…/g, ',').replace(/Ohh/g, 'Oh').replace(/Mm-hm/g, 'Mm hm').replace(/,\s*([.!?])/g, '$1');
+const plain = (t: string) => t.replace(/…/g, ',').replace(/Ohh/g, 'Oh').replace(/,\s*([.!?])/g, '$1');
 export function ssml(text: string, variant: number, slow = false, voiceName = AZURE_VOICES[0], style: number | null = null) {
   const p = slow ? STUCK : style !== null ? STYLES[style] : VARIANTS[variant % VARIANTS.length];
   const body = plain(text)

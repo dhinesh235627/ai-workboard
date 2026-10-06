@@ -9,7 +9,7 @@
   // Same delivery as the clip we liked: Ava, slower than normal and a touch warm. The stressed words get a
   // tiny pause on each side and an emphasis tag only (no second slow-down, it made them sound stretched);
   // "Ohh" and "…" are written as "Oh" and a comma, which Azure reads more naturally.
-  const plain = (l) => l.replace(/…/g, ',').replace(/Ohh/g, 'Oh').replace(/Mm-hm/g, 'Mm hm').replace(/,\s*([.!?])/g, '$1');
+  const plain = (l) => l.replace(/…/g, ',').replace(/Ohh/g, 'Oh').replace(/,\s*([.!?])/g, '$1');
   function toSsml(lines, voiceName) {
     const body = lines.map((l) => esc(plain(l)).replace(/[“"]([^”"]+)[”"]/g, '<break time="150ms"/><emphasis level="moderate">$1</emphasis><break time="150ms"/>')).join('<break time="450ms"/>');
     return '<speak version="1.0" xmlns="http://www.w3.org/2001/10/synthesis" xmlns:mstts="https://www.w3.org/2001/mstts" xml:lang="en-US">' +
