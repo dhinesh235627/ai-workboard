@@ -77,16 +77,46 @@
   const V = window.AIWB_VOICE;
   const SPEAK = window.AIWB_SPEAK || [];
   const LINES = window.AIWB_LINES || {};
-  let spokenKey = '';
+  const said = new Set(); // what was spoken during this step (cleared when a step starts)
   const voiceSay = (key, lines) => {
-    if (!V || !lines || spokenKey === key) return;
-    spokenKey = key;
+    if (!V || !lines || said.has(key)) return;
+    said.add(key);
     V.speak(lines, session, () => {
       banner.textContent = 'Click anywhere on the page to hear my voice';
       banner.classList.add('aiwb-on');
       setTimeout(() => banner.classList.remove('aiwb-on'), NAV_SHOW_MS + 3000);
     });
   };
+
+  // ---- nudge: the step is pointed at but not done 15 s after the guide stopped talking -> say it again,
+  // in a different sentence, and pulse the cursor. At most AIWB_NUDGE[i].length times per step, then quiet.
+  // Any real click or keypress restarts the 15 s (the learner is busy, e.g. typing the agent name).
+  const NUDGE = window.AIWB_NUDGE || [];
+  const NUDGE_MS = 15000;
+  // ponytail: speech length is estimated (slow voice ~450 ms a word), so the wait starts after the guide
+  // has finished talking; use the audio's real 'ended' event if the estimate ever cuts a sentence off.
+  const talkMs = (lines) => (lines || []).join(' ').split(/\s+/).length * 450;
+  let nudgeTimer = 0;
+  let nudgeFor = -1;
+  let nudged = 0;
+  function armNudge(wait) {
+    clearTimeout(nudgeTimer);
+    const next = NUDGE[index] && NUDGE[index][nudged];
+    nudgeTimer = next ? setTimeout(nudge, wait) : 0;
+    if (next && V) V.warm([next], session);
+  }
+  function nudge() {
+    nudgeTimer = 0;
+    if (!alive || index >= STEPS.length) return;
+    // Not pointing right now (page still loading) or another tab is in front: wait another round.
+    if (!target || document.visibilityState !== 'visible') { armNudge(NUDGE_MS); return; }
+    const line = NUDGE[index][nudged++];
+    voiceSay('n' + index + '.' + nudged, [line]);
+    cursor.classList.remove('aiwb-nudge');
+    void cursor.offsetWidth; // restart the pulse animation
+    cursor.classList.add('aiwb-nudge');
+    armNudge(NUDGE_MS + talkMs([line]));
+  }
 
   const BLADE = '.blade,[role=dialog],dialog,[data-blade]';
   const CONTROLS = 'input,textarea,select,button,[role=combobox],[role=textbox],[contenteditable=true]';
@@ -456,6 +486,7 @@
       say(step.label, 'pointing');
       place();
       voiceSay('p' + index, SPEAK[index] || [step.label]);
+      if (nudgeFor !== index) { nudgeFor = index; nudged = 0; armNudge(NUDGE_MS + talkMs(SPEAK[index] || [step.label])); }
       if (V) V.warm(SPEAK[index + 1], session);
     } else if (hit) {
       target = null;
@@ -539,6 +570,11 @@
     stepBeganAt = stepStart;
     stepHref = location.href;
     target = null;
+    said.clear();
+    clearTimeout(nudgeTimer);
+    nudgeTimer = 0;
+    nudgeFor = -1;
+    cursor.classList.remove('aiwb-nudge');
     if (index >= STEPS.length) {
       cursor.classList.remove('aiwb-on');
       say('All steps complete', 'done');
@@ -566,7 +602,11 @@
     const at = index;
     setTimeout(() => { if (alive && index === at) hooks.advance(at + 1); }, 0);
   }
-  const onUserAct = (e) => { if (e.isTrusted) actedAt = Date.now(); };
+  const onUserAct = (e) => {
+    if (!e.isTrusted) return;
+    actedAt = Date.now();
+    if (nudgeTimer) armNudge(NUDGE_MS);
+  };
   document.addEventListener('click', onUserAct, true);
   document.addEventListener('keydown', onUserAct, true);
   document.addEventListener('click', onUse, true);
@@ -619,6 +659,7 @@
     if (V) V.stop();
     clearInterval(navTick);
     clearTimeout(deadlineTimer);
+    clearTimeout(nudgeTimer);
     clearTimeout(refreshTimer);
     clearTimeout(lookTimer);
     clearTimeout(navTimer);

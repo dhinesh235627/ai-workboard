@@ -56,6 +56,23 @@ window.AIWB_SPEAK = [
   ['Last one, I promise. Hmm, look how far you’ve come.', 'Type a question in this box, and let’s see your agent answer.'],
 ];
 
+// Re-prompts, same order as AIWB_STEPS: when the learner has not done the step 15 s after the guide
+// spoke, the next one is said (each a different sentence, so it never sounds like a broken record).
+// After the last one the guide stays quiet; the cursor and its label stay up.
+window.AIWB_NUDGE = [
+  ['Still with me? Look for my blue cursor, it’s sitting right on “Go to Foundry portal”.', 'No rush… whenever you’re ready, just click “Go to Foundry portal”.', 'Hmm, can you see it? It’s the link my cursor is pointing at, “Go to Foundry portal”.'],
+  ['Mm-hm, take a look at the very top of the page… click “Build”.', 'It’s up in the top menu, right where my blue cursor is. Click “Build”.', 'Whenever you’re ready, just one click on “Build”.'],
+  ['Hmm, still there? Click “New agent”, right under my cursor.', 'See the button with my blue circle on it? That’s “New agent”. Give it a click.', 'No hurry at all… just click “New agent” when you’re ready.'],
+  ['The little menu is waiting for you. Choose “Build an agent”.', 'Look where my cursor is pointing… “Build an agent”. Click it.', 'Take your time. Just pick “Build an agent” from that menu.'],
+  ['Hmm, let’s give our agent a name. Click the box my cursor is on.', 'Click right into that box, and type a name, like “HR policy helper”.', 'Any friendly name works. Just click the box and start typing.'],
+  ['Your agent is ready to be made. Click “Create”.', 'See my blue cursor? It’s right on “Create”. One click, and it’s alive.', 'Whenever you’re ready… click “Create”.'],
+  ['Have a look at the model my cursor is pointing at. Click it when you’ve checked.', 'It should say gpt-4o-mini. Click right where my cursor is.', 'No rush… just click on the model when you’re happy with it.'],
+  ['Now click the instructions box, right where my cursor is.', 'Click that box, and paste the starter text from your lab card.', 'Your lab card has the text ready. Click the box and paste it in.'],
+  ['If you can see the knowledge part, click where my cursor is.', 'Add the HR policy file here. Or, if it isn’t there, press Skip step.', 'Take your time. Click it, or skip it, either is fine.'],
+  ['Don’t forget to save! Click “Save”, right under my cursor.', 'Just one click on “Save”, so nothing gets lost.', 'Mm-hm, whenever you’re ready, click “Save”.'],
+  ['Last step! Click the message box and ask your agent something.', 'Try typing a question, like, “How many leave days do I get?”', 'Go on… say hello to the agent you built.'],
+];
+
 window.AIWB_LINES = {
   done: ['You did it! Ohh, I’m so proud of you.', 'Your agent is alive, and you built it yourself. Take a breath… that was a wonderful first build.'],
   waiting: ['Hmm… give me a moment, I’m looking for it.'],
