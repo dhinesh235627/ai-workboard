@@ -3,7 +3,7 @@
 // background.js, because an Azure page may not call another site directly.
 // window.AIWB_VOICE = { speak(lines, cfg, onBlocked), warm(lines, cfg), stop(), toggleMute(), isMuted() }
 (() => {
-  const AZURE_VOICES = ['en-US-AvaNeural', 'en-US-AndrewNeural'];
+  const AZURE_VOICES = ['en-US-CoraMultilingualNeural', 'en-US-BrandonMultilingualNeural'];
   const esc = (s) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 
   // Same delivery as the clip we liked: Ava, slower than normal and a touch warm. The stressed words get a

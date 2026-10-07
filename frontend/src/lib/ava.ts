@@ -50,7 +50,7 @@ const VARIANTS: Pace[] = [{ rate: '-16%', pitch: '+3%' }, { rate: '-18%', pitch:
 const STUCK: Pace = { rate: '-24%', pitch: '+2%' };
 
 // Voice picker (Setup > Meet your guide): 0 Ava (female), 1 Leo (male), 2 team voice (cloned, Fish Audio).
-export const AZURE_VOICES = ['en-US-AvaNeural', 'en-US-AndrewNeural'];
+export const AZURE_VOICES = ['en-US-CoraMultilingualNeural', 'en-US-BrandonMultilingualNeural'];
 export const CLONE = 2;
 // Setup's "Speaking style" chips -> SaaSH styles.
 // Ava/Leo ignore emotion tags, so the difference is carried by pace, pitch and pauses (always honoured by Azure).
