@@ -9,6 +9,10 @@
     "SPEECH_KEY": "<azure-speech-key>",
     "SPEECH_REGION": "<e.g. eastus>",
     "FISH_AUDIO_API_KEY": "<fish audio key, for cloning the learner's own voice>",
-    "FISH_VOICE_ID": "<optional: default team voice model id, used when a learner hasn't recorded their own>"
+    "FISH_VOICE_ID": "<optional: default team voice model id, used when a learner hasn't recorded their own>",
+    "CERT_VERIFY_BASE_URL": "http://localhost:5173"
+  },
+  "Host": {
+    "CORS": "*"
   }
 }
