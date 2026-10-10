@@ -6,9 +6,8 @@
     "AZURE_SUBSCRIPTION_ID": "<your subscription id>",
     "LABS_RESOURCE_GROUP": "rg-ai-workboard-labs",
     "DEFAULT_LEARNER_OBJECT_ID": "<your Azure AD object id, until real login exists>",
-    "SPEECH_KEY": "<azure-speech-key>",
-    "SPEECH_REGION": "<e.g. eastus>",
-    "FISH_AUDIO_API_KEY": "<fish audio key, for cloning the learner's own voice>",
-    "FISH_VOICE_ID": "<optional: default team voice model id, used when a learner hasn't recorded their own>"
+    "FISH_AUDIO_API_KEY": "<fish audio key - the only TTS/voice-clone provider now (Azure TTS was removed)>",
+    "FISH_VOICE_MALE": "<optional: overrides the built-in Fish Audio male default voice id (Leo)>",
+    "FISH_VOICE_FEMALE": "<optional: overrides the built-in Fish Audio female default voice id (Ava)>"
   }
 }

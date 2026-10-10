@@ -26,7 +26,7 @@ function safeStorage(): Storage | null {
 
 export default function Setup() {
   const [s, setState] = useMergeState({ step: 0, c0: true, c1: false, mon: 0, voice: 0, style: 0, practiced: false, note: '',
-    rec: getPref('ava.cloneId') ? 'ready' : 'idle' as 'idle' | 'recording' | 'cloning' | 'ready', consent: false, modal: false, name: '', saved: [] as ClonedVoice[] });
+    rec: getPref('ava.cloneId') ? 'ready' : 'idle' as 'idle' | 'recording' | 'cloning' | 'ready', consent: false, modal: false, name: '', saved: [] as ClonedVoice[], fishId: '' });
   const ava = useRef<Ava | null>(null);
   const recorder = useRef<Awaited<ReturnType<typeof startRecording>> | null>(null);
   // The lab that "Start guided session" will open in the real Azure portal: only a READY, unexpired
@@ -467,6 +467,11 @@ export default function Setup() {
                           {s.saved.map((v) => <option key={v.personId} value={v.voiceId}>{v.name} · {v.personId.slice(0, 8)}</option>)}
                         </select>
                       )}
+                      <div style={{ display: "flex", gap: "8px" }}>
+                        <input placeholder="Or paste a Fish Audio voice ID" value={s.fishId} onChange={(e) => setState({ fishId: e.target.value })}
+                          style={{ flexGrow: 1, height: "36px", borderRadius: "10px", background: "#1A1A20", color: "#F4F4F5", border: "1px solid #33333B", padding: "0 10px" }} />
+                        <button className="btn ghost" disabled={!s.fishId.trim()} onClick={() => pickSaved(s.fishId.trim())}>Use ID</button>
+                      </div>
                       <input placeholder="Name this voice (optional)" maxLength={40} value={s.name} onChange={(e) => setState({ name: e.target.value })} style={{ height: "36px", borderRadius: "10px", background: "#1A1A20", color: "#F4F4F5", border: "1px solid #33333B", padding: "0 10px" }} />
                       <label style={{ display: "flex", gap: "8px", alignItems: "flex-start", fontSize: "13px", color: "#A1A1AA" }}>
                         <input type="checkbox" checked={s.consent} onChange={(e) => setState({ consent: e.target.checked })} style={{ marginTop: "2px" }} />

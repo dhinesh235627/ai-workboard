@@ -1,27 +1,18 @@
 // The guide's voice: slow, soft, human. Turns a few sentences into one clip via the app's /api/tts
 // (which talks to the audio-mcp container; the key and token never reach the browser). Fetching is done by
 // background.js, because an Azure page may not call another site directly.
+// All three voices speak through Fish Audio now (Azure TTS was removed); Ava/Leo are Fish's built-in defaults,
+// same ids as frontend/src/lib/ava.ts's FISH_VOICES. Fish takes plain text, not SSML - see that file's note
+// on the pacing this drops.
 // window.AIWB_VOICE = { speak(lines, cfg, onBlocked), warm(lines, cfg), stop(), toggleMute(), isMuted() }
 (() => {
-  const AZURE_VOICES = ['en-US-CoraMultilingualNeural', 'en-US-BrandonMultilingualNeural'];
-  const esc = (s) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-
-  // Same delivery as the clip we liked: Ava, slower than normal and a touch warm. The stressed words get a
-  // tiny pause on each side and an emphasis tag only (no second slow-down, it made them sound stretched);
-  // "Ohh" and "…" are written as "Oh" and a comma, which Azure reads more naturally.
-  const plain = (l) => l.replace(/…/g, ',').replace(/Ohh/g, 'Oh').replace(/,\s*([.!?])/g, '$1');
-  function toSsml(lines, voiceName) {
-    const body = lines.map((l) => esc(plain(l)).replace(/[“"]([^”"]+)[”"]/g, '<break time="150ms"/><emphasis level="moderate">$1</emphasis><break time="150ms"/>')).join('<break time="450ms"/>');
-    return '<speak version="1.0" xmlns="http://www.w3.org/2001/10/synthesis" xmlns:mstts="https://www.w3.org/2001/mstts" xml:lang="en-US">' +
-      '<voice name="' + voiceName + '"><prosody rate="-16%" pitch="+3%">' + body + '</prosody></voice></speak>';
-  }
+  const FISH_VOICES = ['c2623f0c075b4492ac367989aee1576f', '47eec8ee3b7941b58ef57b1b7294202e'];
 
   // cfg = the session: { api, voice (0 Ava, 1 Leo, 2 cloned), cloneId }
   function request(lines, cfg) {
     if (!cfg || !cfg.api) return null;
-    const body = cfg.voice === 2
-      ? { text: lines.join(' ').replace(/[“”"]/g, ''), clone: true, voiceId: cfg.cloneId || undefined }
-      : { ssml: toSsml(lines, AZURE_VOICES[cfg.voice] || AZURE_VOICES[0]) };
+    const voiceId = cfg.voice === 2 ? (cfg.cloneId || undefined) : (FISH_VOICES[cfg.voice] || FISH_VOICES[0]);
+    const body = { text: lines.join(' ').replace(/[“”"]/g, ''), voiceId };
     return { api: cfg.api, body };
   }
 
@@ -79,5 +70,5 @@
     return muted;
   }
 
-  window.AIWB_VOICE = { speak, warm, stop, toggleMute, isMuted: () => muted, toSsml };
+  window.AIWB_VOICE = { speak, warm, stop, toggleMute, isMuted: () => muted };
 })();

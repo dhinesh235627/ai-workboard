@@ -43,23 +43,14 @@ export const cursorLines = (label: string, action: CursorAction, variant: number
 
 export const DONE: string[] = ['You did it! Oh, I’m so proud of you.', 'Your agent is alive, and you built it yourself. Take a breath, that was a wonderful first build.', 'One quick question before we wrap up.'];
 
-// Delivery: the clip we approved. Ava, slower than normal and a touch warm. Each replay shifts the pace a
-// little, so Talk never sounds identical; "stuck" is slower and gentler still.
-type Pace = { rate: string; pitch: string };
-const VARIANTS: Pace[] = [{ rate: '-16%', pitch: '+3%' }, { rate: '-18%', pitch: '+5%' }, { rate: '-14%', pitch: '+1%' }];
-const STUCK: Pace = { rate: '-24%', pitch: '+2%' };
-
 // Voice picker (Setup > Meet your guide): 0 Ava (female), 1 Leo (male), 2 team voice (cloned, Fish Audio).
-export const AZURE_VOICES = ['en-US-CoraMultilingualNeural', 'en-US-BrandonMultilingualNeural'];
+// All three speak through Fish Audio now (Azure TTS was removed); Ava/Leo are Fish's built-in default voices.
+// Fish takes plain text, not Azure SSML, so the old per-variant/style <prosody> pace tables (VARIANTS/STUCK/
+// STYLES) and the <break>/<emphasis> markup they drove no longer apply - ponytail: ships flatter than the old
+// Azure delivery; add a Fish-side pacing equivalent (its `speed` option) if that's a problem in practice.
+export const FISH_VOICES = ['c2623f0c075b4492ac367989aee1576f', '47eec8ee3b7941b58ef57b1b7294202e'];
 export const CLONE = 2;
-// Setup's "Speaking style" chips -> SaaSH styles.
-// Ava/Leo ignore emotion tags, so the difference is carried by pace, pitch and pauses (always honoured by Azure).
-const STYLES: Pace[] = [
-  { rate: '-18%', pitch: '+4%' }, // warm, unhurried, upbeat
-  { rate: '-8%', pitch: '0%' }, // level, even, matter-of-fact
-  { rate: '-2%', pitch: '+7%' }, // brighter, livelier
-];
-// Setup's style chips also change the words: 0 encouraging (warm, confident praise), 1 neutral (as written), 2 energetic (human reactions).
+// Setup's style chips still change the words: 0 encouraging (warm, confident praise), 1 neutral (as written), 2 energetic (human reactions).
 const FLAVOR: string[][] = [
   ['Great job so far, you’ve got this.', 'You’re doing really well.', 'Don’t worry, you’re stronger than this step.', 'That’s the spirit, keep going.'],
   [],
@@ -77,20 +68,6 @@ export const getPref =(k: string) => { try { return localStorage.getItem(k); } c
 export const API_BASE: string = import.meta.env.VITE_API_BASE_URL ?? '';
 export const setPref = (k: string, v: number | string) => { try { localStorage.setItem(k, String(v)); } catch { /* private mode: choice just isn't remembered */ } };
 
-// The words the learner must find on screen are stressed and fenced by tiny pauses (emphasis only: a second
-// slow-down made them sound stretched); instruction sentences leave time to act before the next one.
-// "…" and "Ohh" are sent as a comma and "Oh", which Azure reads more naturally.
-const ACTION = /\b(click|type|select|pick|choose|press|open|paste)\b/i;
-const plain = (t: string) => t.replace(/…/g, ',').replace(/Ohh/g, 'Oh').replace(/,\s*([.!?])/g, '$1');
-export function ssml(text: string, variant: number, slow = false, voiceName = AZURE_VOICES[0], style: number | null = null) {
-  const p = slow ? STUCK : style !== null ? STYLES[style] : VARIANTS[variant % VARIANTS.length];
-  const body = plain(text)
-    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
-    .replace(/“([^”]+)”/g, '<break time="150ms"/><emphasis level="moderate">$1</emphasis><break time="150ms"/>');
-  const gap = ACTION.test(text) ? (slow ? 1100 : 800) : 0; // time to act on the instruction
-  return `<speak version="1.0" xmlns="http://www.w3.org/2001/10/synthesis" xmlns:mstts="https://www.w3.org/2001/mstts" xml:lang="en-US"><voice name="${voiceName}"><prosody rate="${p.rate}" pitch="${p.pitch}">${body}${gap ? `<break time="${gap}ms"/>` : ''}</prosody></voice></speak>`;
-}
-
 export class Ava {
   private audio = new Audio();
   private cache = new Map<string, string>();
@@ -107,9 +84,8 @@ export class Ava {
 
   private async url(text: string, variant: number, slow: boolean, first = false) {
     if (first && !slow) text = flavor(text, this.style); // opener once per speak(), on the first line only
-    const clone = this.voice === CLONE;
-    // Azure voices take SSML; the cloned voice (Fish Audio) takes plain text.
-    const body = clone ? { text: text.replace(/[“”]/g, ''), clone: true, voiceId: this.cloneId ?? undefined } : { ssml: ssml(text, variant, slow, AZURE_VOICES[this.voice] ?? AZURE_VOICES[0], this.style) };
+    const voiceId = this.voice === CLONE ? (this.cloneId ?? undefined) : (FISH_VOICES[this.voice] ?? FISH_VOICES[0]);
+    const body = { text: text.replace(/[“”]/g, ''), voiceId };
     const key = JSON.stringify(body);
     let u = this.cache.get(key);
     if (!u) {
