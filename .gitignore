@@ -20,3 +20,9 @@ frontend-deploy.zip
 
 # Local Azurite storage emulator data (backend timer trigger dev dependency)
 backend/.azurite/
+
+# Local-only recording/automation tooling and its output - browser profiles, recorded
+# lesson videos/frames - never part of the deployed app, never pushed
+foundry-recorder/
+frames/
+videos/

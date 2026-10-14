@@ -3,10 +3,91 @@ import { Link } from 'react-router-dom';
 import { css } from '../lib/css';
 import { useMergeState } from '../lib/useMergeState';
 import { STATUS_TEXT, useAttentionDetection } from '../lib/useAttentionDetection';
+import { captureAndUpload, captureFrame, getLearnerId, newSessionId } from '../lib/proctor';
+import { browserEnv } from '../lib/browserEnv';
+import { isExpired, readRecord } from '../lib/labStore';
+import { armGuide, extensionVersion } from '../lib/guide';
+import { API_BASE as TTS_API, Ava, CLONE, getPref, setPref } from '../lib/ava';
+import { CLONE_TEXT, MIN_MS, cloneVoice, listClonedVoices, startRecording, toWav, type ClonedVoice } from '../lib/cloneVoice';
 import pageCss from './Setup.css?inline';
 
+const INTRO = ['Hi, I’m Ava. I’ll guide you through every lab.', 'Hi, I’m Leo. I’ll walk you through every lab, step by step.', 'Hello! This is your team’s voice, guiding you through the lab.'];
+const SAMPLE = ['Welcome to the lab. First, click “New agent”. Take your time, and I’ll be right here if you get stuck.'];
+const GHOST_INTRO = ['Last step! Let’s try the ghost cursor.', 'See the blue cursor, resting on the “Create” button?', 'Whenever I want you to click something, it will glide there and pulse, just like this.', 'Go ahead and click “Create”.'];
+const GHOST_DONE = ['Nice, that’s exactly how it works!', 'You’re all set. When you’re ready, press “Start guided session”.'];
+const CLONE_TEST = ['That’s your voice, cloned! From now on, I’ll guide you in it.', 'Hey, can you hear me?'];
+const TEST = ['Hey, can you hear me? If this sounds clear, your speakers are ready.'];
+
+const API_BASE = `${import.meta.env.VITE_API_BASE_URL || 'http://localhost:7071'}/api`;
+
+function safeStorage(): Storage | null {
+  try { return window.localStorage; } catch { return null; }
+}
+
 export default function Setup() {
-  const [s, setState] = useMergeState({ step: 0, c0: true, c1: false, mon: 0, voice: 0, style: 0, practiced: false });
+  const [s, setState] = useMergeState({ step: 0, c0: true, c1: false, mon: 0, voice: 0, style: 0, practiced: false, note: '',
+    rec: getPref('ava.cloneId') ? 'ready' : 'idle' as 'idle' | 'recording' | 'cloning' | 'ready', consent: false, modal: false, name: '', saved: [] as ClonedVoice[], fishId: '' });
+  const ava = useRef<Ava | null>(null);
+  const recorder = useRef<Awaited<ReturnType<typeof startRecording>> | null>(null);
+  // The lab that "Start guided session" will open in the real Azure portal: only a READY, unexpired
+  // Foundry lab with a portal link (not a placeholder storage lab, not an expired one).
+  const savedLab = readRecord(browserEnv());
+  const guidedLab =
+    savedLab && savedLab.phase === 'ready' && !isExpired(savedLab, Date.now()) && savedLab.accountName && savedLab.projectName && savedLab.portalUrl
+      ? savedLab : null;
+  const extReady = extensionVersion() !== null;
+  // Record -> WAV -> clone (Fish Audio) -> remember the voice id -> play a test in the new voice.
+  const finishRecording = async () => {
+    if (!recorder.current) return;
+    setState({ rec: 'cloning', note: '' });
+    try {
+      const { blob, ms } = await recorder.current.stop();
+      recorder.current = null;
+      if (ms < MIN_MS) throw new Error('short');
+      const v = await cloneVoice(await toWav(blob), s.name);
+      setPref('ava.cloneId', v.voiceId);
+      setState({ rec: 'ready', saved: [v, ...s.saved] });
+      speak(CLONE_TEST, CLONE);
+    } catch (e) {
+      setState({ rec: 'idle', note: (e as Error).message === 'short' ? '(That was too short. Please read the whole sentence, about 10 seconds.)' : '(Couldn’t clone your voice. Please try again.)' });
+    }
+  };
+  const openClone = () => {
+    setState({ modal: true });
+    listClonedVoices().then((saved) => setState({ saved })).catch(() => setState({ note: '(Couldn’t load saved voices.)' }));
+  };
+  const pickSaved = (voiceId: string) => {
+    if (!voiceId) return;
+    setPref('ava.cloneId', voiceId);
+    setState({ rec: 'ready' });
+    speak(TEST, CLONE);
+  };
+  const toggleRecord = async () => {
+    if (s.rec === 'recording') return finishRecording();
+    try {
+      ava.current?.stop();
+      recorder.current = await startRecording(25000, finishRecording);
+      setState({ rec: 'recording', note: '' });
+    } catch {
+      setState({ note: '(Microphone access is needed to record your voice.)' });
+    }
+  };
+  // Speaks with the voice/style currently chosen on this page (also what the guided lab will use).
+  const speak = (lines: string[], voice = s.voice, style = s.style, delayMs = 0) => {
+    ava.current ??= new Ava();
+    ava.current.voice = voice;
+    ava.current.style = style;
+    ava.current.cloneId = getPref('ava.cloneId');
+    setState({ note: '' });
+    ava.current.speak(lines, 0, false, (t) => t.startsWith('(') && setState({ note: t }), () => {}, delayMs);
+  };
+  useEffect(() => () => ava.current?.stop(), []);
+  // Step 5: Ava introduces the ghost cursor once it has landed on "Create", then celebrates the click.
+  useEffect(() => {
+    if (s.step === 4 && !s.practiced) speak(GHOST_INTRO, s.voice, s.style, 700);
+    else if (s.step !== 4) ava.current?.stop();
+  }, [s.step]);
+  useEffect(() => { if (s.practiced) speak(GHOST_DONE); }, [s.practiced]);
   const attention = useAttentionDetection();
   const { status, faceSignals, errorMessage, running, videoRef, canvasRef, start, stop } = attention;
 
@@ -44,34 +125,37 @@ export default function Setup() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [s.step === 0]);
 
-  // Tab-switch screenshot: capture the current camera frame the moment this
-  // tab is switched away from or minimized, but only while the camera is
-  // actually running and the person has opted into "Snapshot on flag."
-  // Screenshots are kept in memory only for this pass — there is no
-  // storage/upload endpoint yet, so nothing here is persisted or sent
-  // anywhere.
+  // Tab-switch snapshot: the moment this tab is switched away from or minimized, capture the
+  // current camera frame, but only while the camera is actually running and the person has
+  // opted into "Snapshot on flag." The frame is kept in memory AND uploaded to Blob Storage
+  // (private container, one folder per anonymous learner id, deleted after 30 days by the
+  // backend's proctorCleanup job). A failed upload keeps the in-memory copy.
   const [screenshots, setScreenshots] = useState<string[]>([]);
+  const [uploads, setUploads] = useState({ uploaded: 0, failed: 0 });
   const lastCaptureAtRef = useRef(0);
+  const sessionIdRef = useRef<string>('');
+  if (!sessionIdRef.current) sessionIdRef.current = newSessionId(() => crypto.randomUUID());
   useEffect(() => {
     function onVisibilityChange() {
       if (document.visibilityState !== 'hidden') return;
       if (!running || !s.c1) return;
       const now = Date.now();
-      // Reduced from the reference project's own documented 800ms to 100ms
-      // per explicit request — still exists purely to stop a single rapid
-      // alt-tab from flooding the in-memory screenshot list with duplicates.
+      // Stops a single rapid alt-tab from producing duplicates.
       if (now - lastCaptureAtRef.current < 100) return;
       const video = videoRef.current;
       if (!video || video.readyState < 2) return;
       lastCaptureAtRef.current = now;
-      const canvas = document.createElement('canvas');
-      canvas.width = video.videoWidth;
-      canvas.height = video.videoHeight;
-      const ctx = canvas.getContext('2d');
-      if (!ctx) return;
-      ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-      const dataUrl = canvas.toDataURL('image/jpeg', 0.85);
-      setScreenshots((prev) => [...prev, dataUrl]);
+      void captureAndUpload(s.c1, running, {
+        fetchFn: (url, init) => fetch(url, init),
+        apiBase: API_BASE,
+        learnerId: getLearnerId(safeStorage(), () => crypto.randomUUID()),
+        sessionId: sessionIdRef.current,
+        capture: () => captureFrame(video, () => document.createElement('canvas')),
+      }).then(({ dataUrl, upload }) => {
+        if (dataUrl) setScreenshots((prev) => [...prev, dataUrl]);
+        if (upload === 'uploaded') setUploads((u) => ({ ...u, uploaded: u.uploaded + 1 }));
+        if (upload === 'failed') setUploads((u) => ({ ...u, failed: u.failed + 1 }));
+      });
     }
     document.addEventListener('visibilitychange', onVisibilityChange);
     return () => document.removeEventListener('visibilitychange', onVisibilityChange);
@@ -100,16 +184,16 @@ export default function Setup() {
   const tog = (on: boolean) => ({ track: on ? 'background: #3E6AE1' : 'background: #33333B', knob: on ? 'left: 21px' : 'left: 3px', on: on ? 'true' : 'false' });
   const consents = [
     { t: 'Focus & presence during guided sessions', d: 'Ava slows down or checks in if you look away', flip: () => setState({ c0: !s.c0 }), ...tog(s.c0) },
-    { t: 'Snapshot on flag (proctored assessments only)', d: 'Encrypted and deleted after 30 days', flip: () => setState({ c1: !s.c1 }), ...tog(s.c1) },
+    { t: 'Snapshot on flag (proctored assessments only)', d: 'Photo on tab switch · encrypted and deleted after 30 days', flip: () => setState({ c1: !s.c1 }), ...tog(s.c1) },
   ];
   const sel = 'border: 1px solid #3E6AE1';
   const uns = 'border: 1px solid #1F1F24';
   const monitors = [{ t: 'Display 1 · 2560 × 1440', preview: 'Built-in display' }, { t: 'Display 2 · 3840 × 2160', preview: 'External monitor' }]
     .map((m, i) => ({ ...m, border: s.mon === i ? sel : uns, on: s.mon === i ? 'true' : 'false', pick: () => setState({ mon: i }) }));
   const voices = [{ i: 'A', n: 'Ava', d: 'Warm and encouraging' }, { i: 'L', n: 'Leo', d: 'Calm and precise' }, { i: 'Y', n: 'Your team voice', d: 'Cloned voice · admin approval required' }]
-    .map((v, i) => ({ ...v, border: s.voice === i ? sel : uns, on: s.voice === i ? 'true' : 'false', pick: () => setState({ voice: i }) }));
+    .map((v, i) => ({ ...v, border: s.voice === i ? sel : uns, on: s.voice === i ? 'true' : 'false', pick: () => { setState({ voice: i }); setPref('ava.voice', i); if (i === CLONE) openClone(); else speak([INTRO[i]], i); } }));
   const styles = ['Encouraging', 'Neutral', 'Energetic'].map((t, i) => ({
-    t, on: s.style === i ? 'true' : 'false', pick: () => setState({ style: i }),
+    t, on: s.style === i ? 'true' : 'false', pick: () => { setState({ style: i }); setPref('ava.style', i); speak(SAMPLE, s.voice, i); },
     s: s.style === i ? 'background: #F4F4F5; color: #0B0B0D; border: 1px solid #F4F4F5; font-weight: 600' : 'background: transparent; border: 1px solid #33333B',
   }));
   const bars = Array.from({ length: 24 }, (_, i) => ({ d: 'animation-delay: -' + ((i * 137) % 1000) / 1000 + 's' }));
@@ -231,7 +315,7 @@ export default function Setup() {
                       <span style={{ color: "#F4F4F5" }}>
                         presence, looking away and distraction
                       </span>
-                      . Frames never leave this device. We never infer emotions, age or identity.
+                      . Frames stay on this device unless you turn on Snapshot on flag; then only the photo taken when you switch tabs is uploaded. We never infer emotions, age or identity.
                     </div>
                     {consents.map((k, kIndex) => (
                       <Fragment key={kIndex}>
@@ -252,7 +336,8 @@ export default function Setup() {
                     ))}
                     {s.c1 && screenshots.length > 0 && (
                       <div style={{ fontSize: "12px", color: "#8B8B94" }}>
-                        {screenshots.length} tab-switch snapshot{screenshots.length === 1 ? "" : "s"} captured this session (kept in memory only — not uploaded).
+                        {screenshots.length} tab-switch snapshot{screenshots.length === 1 ? "" : "s"} captured this session
+                        {" — "}{uploads.uploaded} uploaded{uploads.failed > 0 ? `, ${uploads.failed} failed to upload (kept on this device)` : ""}.
                       </div>
                     )}
                   </div>
@@ -299,9 +384,10 @@ export default function Setup() {
                       </select>
                     </label>
                   </div>
-                  <button className="btn ghost" style={{ alignSelf: "flex-start" }}>
+                  <button className="btn ghost" style={{ alignSelf: "flex-start" }} onClick={() => speak(TEST)}>
                     Play test tone
                   </button>
+                  {s.note && <div style={{ fontSize: "13px", color: "#FF8A80" }}>{s.note}</div>}
                 </div>
               </>
             )}
@@ -369,6 +455,51 @@ export default function Setup() {
                       </Fragment>
                     ))}
                   </div>
+                  {s.voice === CLONE && s.modal && (
+                    <div onClick={() => s.rec !== 'recording' && s.rec !== 'cloning' && setState({ modal: false })} style={{ position: "fixed", inset: "0", background: "rgba(0,0,0,0.7)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 50 }}>
+                    <div onClick={(e) => e.stopPropagation()} style={{ width: "min(520px, 92vw)", maxHeight: "90vh", overflow: "auto", padding: "20px 22px", borderRadius: "16px", background: "#101014", border: "1px solid #26262C", display: "flex", flexDirection: "column", gap: "12px" }}>
+                      <div style={{ fontSize: "16px", fontWeight: "600" }}>
+                        {s.rec === 'ready' ? '✓ Your voice is ready' : 'Create your team voice'}
+                      </div>
+                      {s.saved.length > 0 && (
+                        <select value="" onChange={(e) => pickSaved(e.target.value)} style={{ height: "36px", borderRadius: "10px", background: "#1A1A20", color: "#F4F4F5", border: "1px solid #33333B", padding: "0 10px" }}>
+                          <option value="">Use an already cloned voice…</option>
+                          {s.saved.map((v) => <option key={v.personId} value={v.voiceId}>{v.name} · {v.personId.slice(0, 8)}</option>)}
+                        </select>
+                      )}
+                      <div style={{ display: "flex", gap: "8px" }}>
+                        <input placeholder="Or paste a Fish Audio voice ID" value={s.fishId} onChange={(e) => setState({ fishId: e.target.value })}
+                          style={{ flexGrow: 1, height: "36px", borderRadius: "10px", background: "#1A1A20", color: "#F4F4F5", border: "1px solid #33333B", padding: "0 10px" }} />
+                        <button className="btn ghost" disabled={!s.fishId.trim()} onClick={() => pickSaved(s.fishId.trim())}>Use ID</button>
+                      </div>
+                      <input placeholder="Name this voice (optional)" maxLength={40} value={s.name} onChange={(e) => setState({ name: e.target.value })} style={{ height: "36px", borderRadius: "10px", background: "#1A1A20", color: "#F4F4F5", border: "1px solid #33333B", padding: "0 10px" }} />
+                      <label style={{ display: "flex", gap: "8px", alignItems: "flex-start", fontSize: "13px", color: "#A1A1AA" }}>
+                        <input type="checkbox" checked={s.consent} onChange={(e) => setState({ consent: e.target.checked })} style={{ marginTop: "2px" }} />
+                        This is my own voice, and I agree to a synthetic copy of it being created to guide my lab sessions.
+                      </label>
+                      <div style={{ fontSize: "13px", color: "#A1A1AA" }}>
+                        Read this aloud:
+                      </div>
+                      <div style={{ fontSize: "15px", lineHeight: "1.5", color: "#F4F4F5", padding: "12px 14px", borderRadius: "12px", background: "#1A1A20" }}>
+                        “{CLONE_TEXT}”
+                      </div>
+                      <div style={{ display: "flex", gap: "10px", alignItems: "center" }}>
+                        <button className="btn" disabled={!s.consent || s.rec === 'cloning'} onClick={toggleRecord} style={{ opacity: !s.consent || s.rec === 'cloning' ? 0.5 : 1 }}>
+                          {s.rec === 'recording' ? '■ Stop recording' : s.rec === 'cloning' ? 'Cloning your voice…' : s.rec === 'ready' ? '● Record again' : '● Record your voice'}
+                        </button>
+                        {s.rec === 'ready' && (
+                          <button className="btn ghost" onClick={() => speak(TEST, CLONE)}>
+                            ▶ Test my voice
+                          </button>
+                        )}
+                        <button className="btn ghost" disabled={s.rec === 'recording' || s.rec === 'cloning'} onClick={() => setState({ modal: false })} style={{ marginLeft: "auto" }}>
+                          Done
+                        </button>
+                      </div>
+                      {s.note && <div style={{ fontSize: "13px", color: "#FF8A80" }}>{s.note}</div>}
+                    </div>
+                    </div>
+                  )}
                   <div style={{ fontSize: "13px", color: "#A1A1AA" }}>
                     Speaking style
                   </div>
@@ -381,9 +512,10 @@ export default function Setup() {
                       </Fragment>
                     ))}
                   </div>
-                  <button className="btn ghost" style={{ alignSelf: "flex-start" }}>
+                  <button className="btn ghost" style={{ alignSelf: "flex-start" }} onClick={() => speak(SAMPLE)}>
                     ▶ Hear a sample
                   </button>
+                  {s.note && <div style={{ fontSize: "13px", color: "#FF8A80" }}>{s.note}</div>}
                 </div>
               </>
             )}
@@ -416,6 +548,11 @@ export default function Setup() {
                         </div>
                       </>
                     )}
+                  </div>
+                  <div data-testid="guide-note" style={{ fontSize: "13px", color: guidedLab && !extReady ? "#FF9F0A" : "#A1A1AA", lineHeight: "1.5" }}>
+                    {guidedLab && extReady && "Start guided session opens your Azure lab in a new tab. The blue cursor then guides you, click by click, through creating the agent."}
+                    {guidedLab && !extReady && "The ghost cursor extension was not found. Install it (chrome://extensions, Developer mode, Load unpacked, choose the ghost-cursor-extension folder), reload this page, then press Start guided session."}
+                    {!guidedLab && "Provision a lab on the Labs page to be guided in the real Azure portal. Until then this opens the practice session."}
                   </div>
                   <div style={{ display: "flex", gap: "18px", fontSize: "12px", color: "#A1A1AA" }}>
                     <span>
@@ -453,9 +590,20 @@ export default function Setup() {
               )}
               {last && (
                 <>
-                  <Link to="/guided" className="btn">
-                    Start guided session
-                  </Link>
+                  {guidedLab && extReady ? (
+                    // A plain link, so the browser never treats it as a blocked popup.
+                    <a className="btn" href={guidedLab.portalUrl ?? undefined} target="_blank" rel="noopener noreferrer" onClick={() => { ava.current?.stop(); armGuide(true, guidedLab.accountName ?? '', window, { api: TTS_API || location.origin, voice: Number(getPref('ava.voice')) || 0, cloneId: getPref('ava.cloneId') }); }}>
+                      Start guided session
+                    </a>
+                  ) : guidedLab ? (
+                    <button className="btn" disabled={true}>
+                      Install the extension first
+                    </button>
+                  ) : (
+                    <Link to="/guided" className="btn">
+                      Start guided session
+                    </Link>
+                  )}
                 </>
               )}
             </div>

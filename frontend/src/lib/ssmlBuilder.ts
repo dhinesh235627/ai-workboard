@@ -93,7 +93,7 @@ export function formatToSsml(text: string, metadata?: VoiceMetadata): string {
   if (!text) return '';
   if (isSsml(text)) return text;
 
-  const voiceName = metadata?.voiceName || 'en-US-AvaNeural';
+  const voiceName = metadata?.voiceName || 'en-US-CoraMultilingualNeural';
   const level = metadata?.level || 'intermediate';
 
   // 1. Determine Azure Express-As Style Tag & Intensity

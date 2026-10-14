@@ -1,10 +1,64 @@
-import { Fragment } from 'react';
+import { Fragment, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
+import QRCode from 'qrcode';
+import RoboAiLogo from '../components/RoboAiLogo';
 import Sidebar from '../components/Sidebar';
+import {
+  fetchCertificate, formatDate, issueCertificate, linkedInUrl, pdfUrl, saveCertificateId, savedCertificateId,
+  type Certificate, type Scores,
+} from '../lib/certificates';
 import { css } from '../lib/css';
 import pageCss from './Results.css?inline';
 
+// Scores shown on this page; the certificate records the same numbers.
+const SCORES: Scores = { overall: 93, quizzes: 88, lab: 100, rubric: 80 };
+
 export default function Results() {
+  const [cert, setCert] = useState<Certificate | null>(null);
+  const [name, setName] = useState('Priya Sharma');
+  const [qr, setQr] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
+
+  // Show the learner's certificate again on later visits.
+  useEffect(() => {
+    const id = savedCertificateId();
+    if (!id) return;
+    let cancelled = false;
+    fetchCertificate(id)
+      .then((c) => {
+        if (cancelled) return;
+        if (c) setCert(c);
+        else saveCertificateId(null); // no longer exists on the server
+      })
+      .catch((err) => console.error('Failed to load saved certificate', err));
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  // Real, scannable QR code that opens this certificate's verification page.
+  useEffect(() => {
+    if (!cert) return;
+    QRCode.toDataURL(cert.verifyUrl, { margin: 1, width: 288, color: { dark: '#1A1A1A', light: '#FFFFFF' } })
+      .then(setQr)
+      .catch((err) => console.error('Failed to build QR code', err));
+  }, [cert]);
+
+  const issue = async () => {
+    setBusy(true);
+    setError('');
+    try {
+      const c = await issueCertificate(name.trim(), SCORES);
+      saveCertificateId(c.id);
+      setCert(c);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Could not issue the certificate');
+    } finally {
+      setBusy(false);
+    }
+  };
+
   const vals = {
     parts: [
       { n: 'Quizzes', w: '40%', v: '88%' },
@@ -113,8 +167,9 @@ export default function Results() {
               </section>
             </div>
             <section style={{ borderRadius: "24px", background: "#F5F2EA", color: "#1A1A1A", padding: "48px", display: "flex", flexDirection: "column", gap: "18px", position: "relative" }}>
-              <div style={{ fontSize: "12px", letterSpacing: "0.2em", color: "#6B6559" }}>
-                LEARNLY · VERIFIED SKILL
+              <div style={{ display: "flex", alignItems: "center", gap: "12px", fontSize: "12px", letterSpacing: "0.2em", color: "#6B6559" }}>
+                <RoboAiLogo size={26} />
+                ROBO&amp;AI · VERIFIED SKILL
               </div>
               <div style={{ fontFamily: "'Instrument Serif', Georgia, serif", fontSize: "56px", lineHeight: "1.02", letterSpacing: "-0.01em" }}>
                 Azure AI Foundry
@@ -124,38 +179,67 @@ export default function Results() {
               <div style={{ fontSize: "15px", color: "#4A463E", lineHeight: "1.6", maxWidth: "440px" }}>
                 Awarded to{" "}
                 <span style={{ fontWeight: "600", color: "#1A1A1A" }}>
-                  Priya Sharma
+                  {cert ? cert.holderName : name.trim() || 'Your name'}
                 </span>
                 {" "}for building and testing a grounded agent in a live Azure environment.
               </div>
               <div style={{ flexGrow: "1" }} />
               <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between" }}>
                 <div style={{ fontSize: "13px", color: "#6B6559", lineHeight: "1.7" }}>
-                  Issued 26 Sep 2026
+                  {cert ? `Issued ${formatDate(cert.issuedAt)}` : 'Not issued yet'}
                   <br />
-                  ID LRN-AF-4821-93
+                  {cert ? `ID ${cert.id}` : 'ID assigned when issued'}
                   <br />
-                  [YOUR ORG]
+                  ROBO&amp;AI
                 </div>
-                <div aria-label="Verification QR code" style={{ width: "96px", height: "96px", borderRadius: "8px", background: "#1A1A1A", display: "flex", alignItems: "center", justifyContent: "center", color: "#F5F2EA", fontSize: "11px" }}>
-                  QR
-                </div>
+                {cert && qr ? (
+                  <a href={cert.verifyUrl} target="_blank" rel="noreferrer" aria-label="Verification QR code" title="Scan or click to verify" style={{ display: "block", width: "96px", height: "96px", borderRadius: "8px", overflow: "hidden", background: "#FFFFFF", border: "1px solid #D9D4C7" }}>
+                    <img src={qr} alt={`QR code that verifies certificate ${cert.id}`} width="96" height="96" style={{ display: "block" }} />
+                  </a>
+                ) : (
+                  <div aria-label="Verification QR code" style={{ width: "96px", height: "96px", borderRadius: "8px", background: "#1A1A1A", display: "flex", alignItems: "center", justifyContent: "center", color: "#F5F2EA", fontSize: "11px" }}>
+                    QR
+                  </div>
+                )}
               </div>
               <div style={{ fontSize: "11px", color: "#6B6559" }}>
                 Prepares you for the vendor exam. Not a vendor certification.
               </div>
             </section>
           </div>
-          <div style={{ display: "flex", gap: "12px", justifyContent: "flex-end" }}>
+          <div style={{ display: "flex", gap: "12px", justifyContent: "flex-end", alignItems: "center", flexWrap: "wrap" }}>
+            {error && (
+              <span role="alert" style={{ fontSize: "13px", color: "#FF6B63" }}>
+                {error}
+              </span>
+            )}
             <Link to="/guided" className="btn ghost">
               Retake lab
             </Link>
-            <Link to="/results" className="btn ghost">
-              Download PDF
-            </Link>
-            <Link to="/results" className="btn ghost">
-              Add to LinkedIn
-            </Link>
+            {cert ? (
+              <>
+                <a href={pdfUrl(cert.id)} download className="btn ghost">
+                  Download PDF
+                </a>
+                <a href={linkedInUrl(cert)} target="_blank" rel="noreferrer" className="btn ghost">
+                  Add to LinkedIn
+                </a>
+              </>
+            ) : (
+              <>
+                <input
+                  aria-label="Name on certificate"
+                  value={name}
+                  maxLength={80}
+                  onChange={(e) => setName(e.target.value)}
+                  placeholder="Name on certificate"
+                  style={{ height: "44px", width: "220px", padding: "0 14px", borderRadius: "12px", background: "#151518", border: "1px solid #24242A", color: "#F4F4F5", fontFamily: "inherit", fontSize: "14px", outline: "none" }}
+                />
+                <button onClick={issue} disabled={busy || name.trim().length < 3} className="btn ghost" style={{ opacity: busy || name.trim().length < 3 ? 0.6 : 1 }}>
+                  {busy ? 'Issuing…' : 'Issue certificate'}
+                </button>
+              </>
+            )}
             <Link to="/" className="btn">
               Continue path
             </Link>
