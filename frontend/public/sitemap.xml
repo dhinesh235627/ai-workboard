@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Only the public entry page is listed here. The rest of the app
+  (/learn, /quiz, /labs, /setup, /guided, /results, /admin) sits behind
+  the product's own login/flow and is intentionally left out of the
+  sitemap — those aren't pages you want Google crawling or indexing.
+-->
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+  <url>
+    <loc>https://ai-workboard-qa.azurewebsites.net/</loc>
+    <changefreq>weekly</changefreq>
+    <priority>1.0</priority>
+  </url>
+</urlset>
